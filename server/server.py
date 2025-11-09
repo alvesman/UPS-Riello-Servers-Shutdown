@@ -292,16 +292,33 @@ class UPSServer:
                     del self.clients[hostname]
     
     def _get_server_ip(self) -> str:
-        """Get the server's local IP address."""
+        """Get the server's local IP address.
+        
+        This determines which IP address clients should use to connect.
+        The server binds to 0.0.0.0 (all interfaces), but clients need
+        a specific IP address to connect to.
+        """
         try:
             # Create a socket to determine local IP
+            # This finds which interface would be used for external connectivity
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
+            s.connect(("8.8.8.8", 80))  # Doesn't actually send data
             ip = s.getsockname()[0]
             s.close()
             return ip
         except:
-            return "0.0.0.0"
+            # If the above fails, try to get hostname IP
+            try:
+                hostname = socket.gethostname()
+                ip = socket.gethostbyname(hostname)
+                if ip and ip != "127.0.0.1":
+                    return ip
+            except:
+                pass
+            
+            # Last resort: return empty to signal client to use server's address from UDP response
+            logger.warning("Could not determine server IP, client will use source address from UDP packet")
+            return ""
     
     def send_message_to_client(self, hostname: str, message: dict):
         """Send a message to a specific client."""

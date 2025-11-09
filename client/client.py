@@ -123,7 +123,13 @@ class UPSClient:
                 data, server_addr = udp_socket.recvfrom(1024)
                 response = json.loads(data.decode('utf-8'))
                 
-                server_ip = response.get('server_ip', server_addr[0])
+                # Get server IP from response, or use source address from UDP packet
+                server_ip = response.get('server_ip', '')
+                if not server_ip or server_ip == '0.0.0.0':
+                    # Use the source IP from the UDP response
+                    server_ip = server_addr[0]
+                    logger.debug(f"Using UDP source address: {server_ip}")
+                
                 tcp_port = response.get('tcp_port')
                 
                 if tcp_port:
