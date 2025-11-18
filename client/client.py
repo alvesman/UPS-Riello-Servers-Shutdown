@@ -316,9 +316,15 @@ class UPSClient:
     def _handle_message(self, message: dict):
         """Handle a message received from server."""
         msg_type = message.get('type')
-        
+                
         if msg_type == 'heartbeat_ack':
             logger.debug("Heartbeat acknowledged")
+        elif msg_type == 'ups_status':
+            total_minutes = message.get('total_minutes')
+            timestamp = message.get('timestamp')
+            logger.info(f"UPS Status Update - Total Minutes: {total_minutes}, Timestamp: {timestamp}")
+            # Here you could implement logic based on remaining time
+            # For example, shutdown if total_minutes < threshold
         elif msg_type == 'shutdown':
             logger.warning(f"SHUTDOWN command received: {message.get('reason', 'No reason provided')}")
             # Here you would implement the actual shutdown logic
@@ -328,7 +334,7 @@ class UPSClient:
             logger.info(f"Command received: {command}")
             # Handle other commands here
         else:
-            logger.info(f"Message received: {message}")
+            logger.info(f"Unknown message type received: {message}")
 
 
 def main():

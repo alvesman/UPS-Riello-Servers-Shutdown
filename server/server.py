@@ -8,7 +8,18 @@ import threading
 import json
 import time
 import logging
+import re
 from typing import Dict, Tuple
+import sys
+try:
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.chrome.options import Options
+    from selenium.common.exceptions import TimeoutException, WebDriverException
+except ImportError:
+    print("Error: Selenium not installed", file=sys.stderr)
+    print("Install with: pip install selenium", file=sys.stderr)
+    sys.exit(1)
 
 # Configure logging
 logging.basicConfig(
@@ -18,12 +29,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-UDP_BROADCAST_PORT = 5225   # sudo ufw allow 5225/udp
-TCP_SERVER_PORT = 5226      # sudo ufw allow 5226/tcp
-# check with sudo ufw status
+UDP_BROADCAST_PORT = 5225
+TCP_SERVER_PORT = 5226
+
 DISCOVERY_MESSAGE = b"UPS_DISCOVER"
 HEARTBEAT_TIMEOUT = 90  # 90 seconds = 30s + max 30s random + 30s buffer
 
+# UPS Monitoring Configuration
+UPS_URL = 'https://192.168.155.55/'  # Default UPS dashboard URL
+UPS_CHECK_INTERVAL = 60  # Check UPS every 60 seconds
 
 class ClientConnection:
     """Represents a connected client."""
@@ -43,7 +57,89 @@ class ClientConnection:
         """Check if client is still alive based on heartbeat timeout."""
         return time.time() - self.last_heartbeat < HEARTBEAT_TIMEOUT
 
-
+class ReadUPSMinutes:
+    """Class to read UPS minutes using get_total_minutes function."""
+    @staticmethod
+    def get_total_minutes(url, wait_time=5):
+        """
+        Extract total minutes of autonomy time
+        
+        Args:
+            url (str): URL to the MPW-MCU dashboard
+            wait_time (int): Seconds to wait for JavaScript to load
+            
+        Returns:
+            int: Total minutes or None if failed
+        """
+        driver = None
+        
+        try:
+            # Configure Chrome options (headless mode)
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--disable-web-security')
+            chrome_options.add_argument('--ignore-certificate-errors')
+            chrome_options.add_argument('--ignore-ssl-errors')
+            chrome_options.add_argument('--disable-extensions')
+            chrome_options.add_argument('--disable-logging')
+            chrome_options.add_argument('--log-level=3')
+            chrome_options.add_argument('--silent')
+            
+            # Initialize WebDriver
+            driver = webdriver.Chrome(options=chrome_options)
+            driver.set_page_load_timeout(30)
+            
+            # Load the page
+            driver.get(url)
+            
+            # Wait for JavaScript to update values
+            time.sleep(wait_time)
+            
+            # Try multiple selectors to find the autonomy element
+            autonomy_element = None
+            selectors = [
+                'span.time.autonomy',
+                'span.autonomy',
+                '.time.autonomy',
+                'span[class*="autonomy"]'
+            ]
+            
+            for selector in selectors:
+                try:
+                    autonomy_element = driver.find_element(By.CSS_SELECTOR, selector)
+                    if autonomy_element:
+                        break
+                except:
+                    continue
+            
+            if not autonomy_element:
+                return None
+            
+            autonomy_value = autonomy_element.text.strip()
+            
+            if not autonomy_value or autonomy_value == '-':
+                return None
+            
+            # Parse HH:MM format
+            match = re.match(r'^(\d{1,2}):(\d{2})$', autonomy_value)
+            if match:
+                hours, minutes = match.groups()
+                total_minutes = int(hours) * 60 + int(minutes)
+                return total_minutes
+            
+            return None
+            
+        except (TimeoutException, WebDriverException):
+            return None
+        except Exception:
+            return None
+        finally:
+            if driver:
+                driver.quit()
+        
 class UPSServer:
     """Main server class for UPS monitoring system."""
     
@@ -70,6 +166,10 @@ class UPSServer:
         # Start client monitor
         monitor_thread = threading.Thread(target=self._monitor_clients, daemon=True)
         monitor_thread.start()
+        
+        # Start UPS monitor
+        ups_thread = threading.Thread(target=self._ups_monitor, daemon=True)
+        ups_thread.start()
         
         logger.info("UPS Server started successfully")
         
@@ -292,6 +392,34 @@ class UPSServer:
                         pass
                     del self.clients[hostname]
     
+    def _ups_monitor(self):
+        """Monitor UPS status and broadcast total minutes to clients."""
+        logger.info("UPS monitor started")
+        
+        while self.running:
+            try:
+                # Get total minutes from UPS
+                total_minutes = ReadUPSMinutes.get_total_minutes(UPS_URL)
+                
+                if total_minutes is not None:
+                    # Broadcast to all connected clients
+                    message = {
+                        'type': 'ups_status',
+                        'total_minutes': total_minutes,
+                        'timestamp': time.time()
+                    }
+                    
+                    logger.info(f"UPS Total Minutes: {total_minutes} - Broadcasting to clients")
+                    self.broadcast_message(message)
+                else:
+                    logger.warning("Failed to retrieve UPS total minutes")
+                
+            except Exception as e:
+                logger.error(f"Error in UPS monitor: {e}")
+            
+            # Wait for next check
+            time.sleep(UPS_CHECK_INTERVAL)
+    
     def _get_server_ip(self) -> str:
         """Get the server's local IP address.
         
@@ -321,29 +449,33 @@ class UPSServer:
             logger.warning("Could not determine server IP, client will use source address from UDP packet")
             return ""
     
+    def _send_message_to_client_unsafe(self, hostname: str, message: dict):
+        """Send a message to a specific client (internal, assumes lock is held)."""
+        if hostname not in self.clients:
+            logger.warning(f"Client {hostname} not found")
+            return False
+        
+        client = self.clients[hostname]
+        
+        try:
+            msg = json.dumps(message)
+            client.conn.sendall(msg.encode('utf-8') + b'\n')
+            logger.info(f"Sent message to {hostname}: {message}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send message to {hostname}: {e}")
+            return False
+    
     def send_message_to_client(self, hostname: str, message: dict):
         """Send a message to a specific client."""
         with self.lock:
-            if hostname not in self.clients:
-                logger.warning(f"Client {hostname} not found")
-                return False
-            
-            client = self.clients[hostname]
-            
-            try:
-                msg = json.dumps(message)
-                client.conn.sendall(msg.encode('utf-8') + b'\n')
-                logger.info(f"Sent message to {hostname}: {message}")
-                return True
-            except Exception as e:
-                logger.error(f"Failed to send message to {hostname}: {e}")
-                return False
+            return self._send_message_to_client_unsafe(hostname, message)
     
     def broadcast_message(self, message: dict):
         """Send a message to all connected clients."""
         with self.lock:
             for hostname in list(self.clients.keys()):
-                self.send_message_to_client(hostname, message)
+                self._send_message_to_client_unsafe(hostname, message)
     
     def list_clients(self):
         """List all connected clients."""
@@ -357,12 +489,10 @@ class UPSServer:
                 for client in self.clients.values()
             ]
 
-
 def main():
     """Main entry point."""
     server = UPSServer()
     server.start()
-
 
 if __name__ == "__main__":
     main()
