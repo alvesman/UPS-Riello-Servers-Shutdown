@@ -350,20 +350,20 @@ class UPSClient:
             
             logger.critical("Executing system shutdown NOW!")
             
-            # Detect OS and execute appropriate shutdown command
-            system = platform.system()
+            # # Detect OS and execute appropriate shutdown command
+            # system = platform.system()
             
-            if system == "Linux" or system == "Darwin":  # Linux or macOS
-                # Assume running as root, no sudo needed
-                # -h = halt, now = immediately
-                subprocess.run(['shutdown', '-h', 'now'], check=True)
-            elif system == "Windows":
-                # Windows shutdown command
-                # /s = shutdown, /t 0 = timeout 0 seconds, /f = force
-                subprocess.run(['shutdown', '/s', '/t', '0', '/f'], check=True)
-            else:
-                logger.error(f"Unsupported operating system: {system}")
-                return
+            # if system == "Linux" or system == "Darwin":  # Linux or macOS
+            #     # Assume running as root, no sudo needed
+            #     # -h = halt, now = immediately
+            #     subprocess.run(['shutdown', '-h', 'now'], check=True)
+            # elif system == "Windows":
+            #     # Windows shutdown command
+            #     # /s = shutdown, /t 0 = timeout 0 seconds, /f = force
+            #     subprocess.run(['shutdown', '/s', '/t', '0', '/f'], check=True)
+            # else:
+            #     logger.error(f"Unsupported operating system: {system}")
+            #     return
                 
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to execute shutdown command: {e}")

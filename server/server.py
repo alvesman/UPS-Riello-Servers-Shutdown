@@ -177,8 +177,7 @@ class UPSServer:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS configuration (
                     key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL,
-                    UPS_minimum_minutes INTEGER DEFAULT 15
+                    value TEXT NOT NULL
                 )
             ''')
             
@@ -187,6 +186,12 @@ class UPSServer:
                 INSERT OR IGNORE INTO configuration (key, value)
                 VALUES ('UPS_URL', ?)
             ''', (UPS_URL,))
+            
+            # Insert default UPS_minimum_minutes if not exists
+            cursor.execute('''
+                INSERT OR IGNORE INTO configuration (key, value)
+                VALUES ('UPS_minimum_minutes', '15')
+            ''')
             
             conn.commit()
             conn.close()

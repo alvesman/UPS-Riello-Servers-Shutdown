@@ -108,7 +108,7 @@ def main():
     
     # Sidebar
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Client Connections", "Configuration", "Add Configuration"])
+    page = st.sidebar.radio("Go to", ["Client Connections", "Configuration"])
     
     # Add refresh button
     if st.sidebar.button("🔄 Refresh Data"):
@@ -127,7 +127,7 @@ def main():
             # Display client connections table
             st.dataframe(
                 clients_df,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
             
@@ -168,59 +168,43 @@ def main():
         if config_df.empty:
             st.info("No configuration values found.")
         else:
-            st.subheader(f"Configuration Values: {len(config_df)}")
+            st.subheader(f"All Configuration Values: {len(config_df)}")
             
-            # Display configuration in an editable format
-            for idx, row in config_df.iterrows():
-                key = row['key']
-                value = row['value']
-                
-                with st.expander(f"🔑 {key}", expanded=False):
-                    col1, col2 = st.columns([3, 1])
-                    
-                    with col1:
-                        new_value = st.text_input(
-                            "Value",
-                            value=value,
-                            key=f"input_{key}"
-                        )
-                    
-                    with col2:
-                        st.write("")  # Spacer
-                        st.write("")  # Spacer
-                        update_col, delete_col = st.columns(2)
-                        
-                        with update_col:
-                            if st.button("💾", key=f"update_{key}", help="Update"):
-                                if update_config_value(key, new_value):
-                                    st.success(f"Updated {key}")
-                                    st.rerun()
-                        
-                        with delete_col:
-                            if st.button("🗑️", key=f"delete_{key}", help="Delete"):
-                                if st.checkbox(f"Confirm delete {key}?", key=f"confirm_{key}"):
-                                    if delete_config_value(key):
-                                        st.success(f"Deleted {key}")
-                                        st.rerun()
-    
-    elif page == "Add Configuration":
-        st.header("➕ Add Configuration Value")
-        
-        with st.form("add_config_form"):
-            new_key = st.text_input("Configuration Key", placeholder="e.g., UPS_CHECK_INTERVAL")
-            new_value = st.text_input("Configuration Value", placeholder="e.g., 60")
+            # Display configuration table
+            st.dataframe(
+                config_df,
+                width='stretch',
+                hide_index=True
+            )
             
-            submitted = st.form_submit_button("Add Configuration")
+            # Edit configuration values
+            st.subheader("✏️ Edit Configuration")
             
-            if submitted:
-                if not new_key or not new_value:
-                    st.error("Please provide both key and value")
-                else:
-                    if update_config_value(new_key, new_value):
-                        st.success(f"Added configuration: {new_key} = {new_value}")
-                        st.balloons()
-                    else:
-                        st.error("Failed to add configuration")
+            col1, col2, col3 = st.columns([2, 2, 1])
+            
+            with col1:
+                selected_key = st.selectbox(
+                    "Select Configuration Key",
+                    options=config_df['key'].tolist(),
+                    key="selected_config_key"
+                )
+            
+            current_value = config_df[config_df['key'] == selected_key]['value'].iloc[0]
+            
+            with col2:
+                new_value = st.text_input(
+                    "New Value",
+                    value=current_value,
+                    key=f"edit_value_{selected_key}"
+                )
+            
+            with col3:
+                st.write("")  # Spacer
+                st.write("")  # Spacer
+                if st.button("💾 Update", key="update_btn"):
+                    if update_config_value(selected_key, new_value):
+                        st.success(f"Updated {selected_key}")
+                        st.rerun()
     
     # Footer
     st.sidebar.markdown("---")
