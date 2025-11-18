@@ -1,10 +1,12 @@
 # Riello UPS shutdown
 
 ## Server 
-The server components must be deployed in the last machine to shutdown.
+The server components must be deployed in the last machine to be shutdown.
 
 ### Install the UPSserver as a service
 ```bash
+sudo mkdir -p /opt/UPSserver
+sudo cp UPSserver.py /opt/UPSserver/
 sudo nano /etc/systemd/system/UPSserver.service
 ```
 ```bash
@@ -15,8 +17,8 @@ After=network.target
 [Service]
 Type=simple
 User=your-username
-WorkingDirectory=/path/to/your/script
-ExecStart=/usr/bin/python3 /path/to/your/script/UPSserver.py
+WorkingDirectory=/opt/UPSserver
+ExecStart=/usr/bin/python3 /opt/UPSserver/UPSserver.py
 Restart=always
 RestartSec=30
 
@@ -62,6 +64,7 @@ sudo journalctl -u UPSserver.service -n 50
 
 ### Install the UPSdashboard as a service
 ```bash
+sudo cp UPSdashboard.py /opt/UPSserver/
 sudo nano /etc/systemd/system/UPSdashboard.service
 ```
 ```bash
@@ -72,8 +75,8 @@ After=network.target
 [Service]
 Type=simple
 User=your-username
-WorkingDirectory=/path/to/your/script
-ExecStart=/usr/bin/python3 -m streamlit run /path/to/your/script/UPSdashboard.py --server.port=8501 --server.address=0.0.0.0
+WorkingDirectory=/opt/UPSserver
+ExecStart=/usr/bin/python3 -m streamlit run /opt/UPSserver/UPSdashboard.py --server.port=8501 --server.address=0.0.0.0
 Restart=always
 RestartSec=30
 
@@ -125,6 +128,8 @@ To be installed on all machines that should be shutdown when UPS battery is bell
 
 ### Install the UPSclient as a service
 ```bash
+sudo mkdir -p /opt/UPSclient
+sudo cp UPSclient.py /opt/UPSclient/
 sudo nano /etc/systemd/system/UPSclient.service
 ```
 ```bash
