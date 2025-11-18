@@ -9,8 +9,10 @@ import json
 import time
 import logging
 import re
+import sqlite3
 from typing import Dict, Tuple
 import sys
+from datetime import datetime
 try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
@@ -143,12 +145,199 @@ class ReadUPSMinutes:
 class UPSServer:
     """Main server class for UPS monitoring system."""
     
-    def __init__(self):
+    def __init__(self, db_path: str = 'ups_clients.db'):
         self.clients: Dict[str, ClientConnection] = {}
         self.running = False
         self.udp_socket = None
         self.tcp_socket = None
         self.lock = threading.Lock()
+        self.db_path = db_path
+        self._init_database()
+        self.db_path = db_path
+        self._init_database()
+    
+    def _init_database(self):
+        """Initialize the SQLite database for tracking client connections."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Create clients table if it doesn't exist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS client_connections (
+                    hostname TEXT PRIMARY KEY,
+                    ip_address TEXT,
+                    port INTEGER,
+                    last_connection_time TEXT,
+                    seconds_to_shutdown INTEGER DEFAULT 0
+                )
+            ''')
+            
+            # Create configuration table if it doesn't exist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS configuration (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    UPS_minimum_minutes INTEGER DEFAULT 15
+                )
+            ''')
+            
+            # Insert default UPS_URL if not exists
+            cursor.execute('''
+                INSERT OR IGNORE INTO configuration (key, value)
+                VALUES ('UPS_URL', ?)
+            ''', (UPS_URL,))
+            
+            conn.commit()
+            conn.close()
+            logger.info(f"Database initialized: {self.db_path}")
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {e}")
+    
+    def _record_client_connection(self, hostname: str, address: Tuple[str, int]):
+        """Record or update client connection in the database."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            ip_address, port = address
+            current_time = datetime.now().isoformat()
+            
+            # Check if client exists
+            cursor.execute('SELECT hostname FROM client_connections WHERE hostname = ?', (hostname,))
+            result = cursor.fetchone()
+            
+            if result:
+                # Update existing record
+                cursor.execute('''
+                    UPDATE client_connections 
+                    SET ip_address = ?, port = ?, last_connection_time = ?
+                    WHERE hostname = ?
+                ''', (ip_address, port, current_time, hostname))
+            else:
+                # Insert new record
+                cursor.execute('''
+                    INSERT INTO client_connections (hostname, ip_address, port, last_connection_time)
+                    VALUES (?, ?, ?, ?)
+                ''', (hostname, ip_address, port, current_time))
+            
+            conn.commit()
+            conn.close()
+            logger.debug(f"Recorded connection for {hostname} at {current_time}")
+        except Exception as e:
+            logger.error(f"Failed to record client connection: {e}")
+    
+    def _update_heartbeat_time(self, hostname: str, address: Tuple[str, int]):
+        """Update the last connection time when a heartbeat is received.
+        
+        This keeps the database updated with the most recent activity time.
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            ip_address, port = address
+            current_time = datetime.now().isoformat()
+            
+            cursor.execute('''\
+                UPDATE client_connections 
+                SET last_connection_time = ?, ip_address = ?, port = ?
+                WHERE hostname = ?
+            ''', (current_time, ip_address, port, hostname))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to update heartbeat time: {e}")
+    
+    def get_client_history(self, hostname: str = None):
+        """Get connection history for a specific client or all clients.
+        
+        Args:
+            hostname: Optional hostname to filter by. If None, returns all clients.
+            
+        Returns:
+            List of dictionaries containing client connection information.
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            if hostname:
+                cursor.execute('''
+                    SELECT hostname, ip_address, port, last_connection_time, seconds_to_shutdown
+                    FROM client_connections
+                    WHERE hostname = ?
+                ''', (hostname,))
+            else:
+                cursor.execute('''
+                    SELECT hostname, ip_address, port, last_connection_time, seconds_to_shutdown
+                    FROM client_connections
+                    ORDER BY last_connection_time DESC
+                ''')
+            
+            results = cursor.fetchall()
+            conn.close()
+            
+            return [
+                {
+                    'hostname': row[0],
+                    'ip_address': row[1],
+                    'port': row[2],
+                    'last_connection_time': row[3],
+                    'seconds_to_shutdown': row[4]
+                }
+                for row in results
+            ]
+        except Exception as e:
+            logger.error(f"Failed to get client history: {e}")
+            return []
+    
+    def get_config_value(self, key: str, default: str = None) -> str:
+        """Get a configuration value from the database.
+        
+        Args:
+            key: Configuration key to retrieve
+            default: Default value if key is not found
+            
+        Returns:
+            Configuration value or default
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT value FROM configuration WHERE key = ?', (key,))
+            result = cursor.fetchone()
+            
+            conn.close()
+            
+            return result[0] if result else default
+        except Exception as e:
+            logger.error(f"Failed to get config value for {key}: {e}")
+            return default
+    
+    def set_config_value(self, key: str, value: str):
+        """Set a configuration value in the database.
+        
+        Args:
+            key: Configuration key
+            value: Configuration value
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO configuration (key, value)
+                VALUES (?, ?)
+            ''', (key, value))
+            
+            conn.commit()
+            conn.close()
+            logger.info(f"Configuration updated: {key} = {value}")
+        except Exception as e:
+            logger.error(f"Failed to set config value for {key}: {e}")
     
     def start(self):
         """Start the server."""
@@ -301,6 +490,9 @@ class UPSServer:
             
             logger.info(f"Client connected: {hostname} from {addr}")
             
+            # Record connection in database
+            self._record_client_connection(hostname, addr)
+            
             # Create client connection object
             client = ClientConnection(hostname, addr, conn)
             
@@ -343,6 +535,9 @@ class UPSServer:
                                 if msg.get('type') == 'heartbeat':
                                     client.update_heartbeat()
                                     logger.debug(f"Heartbeat from {hostname}")
+                                    
+                                    # Update database with heartbeat time
+                                    self._update_heartbeat_time(hostname, addr)
                                     
                                     # Send heartbeat acknowledgment
                                     ack = json.dumps({'type': 'heartbeat_ack'})
@@ -398,19 +593,58 @@ class UPSServer:
         
         while self.running:
             try:
+                # Get UPS URL from database
+                ups_url = self.get_config_value('UPS_URL', UPS_URL)
+                
                 # Get total minutes from UPS
-                total_minutes = ReadUPSMinutes.get_total_minutes(UPS_URL)
+                total_minutes = ReadUPSMinutes.get_total_minutes(ups_url)
                 
                 if total_minutes is not None:
-                    # Broadcast to all connected clients
-                    message = {
-                        'type': 'ups_status',
-                        'total_minutes': total_minutes,
-                        'timestamp': time.time()
-                    }
+                    # Get minimum minutes threshold from configuration
+                    ups_minimum_minutes_str = self.get_config_value('UPS_minimum_minutes', '15')
+                    try:
+                        ups_minimum_minutes = int(ups_minimum_minutes_str)
+                    except ValueError:
+                        ups_minimum_minutes = 15
+                        logger.warning(f"Invalid UPS_minimum_minutes value, using default: 15")
                     
-                    logger.info(f"UPS Total Minutes: {total_minutes} - Broadcasting to clients")
-                    self.broadcast_message(message)
+                    # Check if we need to send shutdown command
+                    if total_minutes <= ups_minimum_minutes:
+                        logger.warning(f"UPS battery critical! Total minutes ({total_minutes}) <= threshold ({ups_minimum_minutes})")
+                        
+                        # Get client history to fetch seconds_to_shutdown for each client
+                        client_history = self.get_client_history()
+                        
+                        with self.lock:
+                            for hostname in list(self.clients.keys()):
+                                # Find seconds_to_shutdown for this client
+                                seconds_to_shutdown = 0
+                                for client_data in client_history:
+                                    if client_data['hostname'] == hostname:
+                                        seconds_to_shutdown = client_data.get('seconds_to_shutdown', 0)
+                                        break
+                                
+                                # Send shutdown message to client
+                                shutdown_message = {
+                                    'type': 'shutdown',
+                                    'reason': 'low_power',
+                                    'seconds_to_shutdown': seconds_to_shutdown,
+                                    'total_minutes': total_minutes,
+                                    'timestamp': time.time()
+                                }
+                                
+                                self._send_message_to_client_unsafe(hostname, shutdown_message)
+                                logger.critical(f"Sent shutdown command to {hostname} with {seconds_to_shutdown}s delay")
+                    else:
+                        # Broadcast normal status to all connected clients
+                        message = {
+                            'type': 'ups_status',
+                            'total_minutes': total_minutes,
+                            'timestamp': time.time()
+                        }
+                        
+                        logger.info(f"UPS Total Minutes: {total_minutes} - Broadcasting to clients")
+                        self.broadcast_message(message)
                 else:
                     logger.warning("Failed to retrieve UPS total minutes")
                 

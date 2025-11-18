@@ -10,6 +10,8 @@ import time
 import random
 import logging
 import platform
+import subprocess
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -323,18 +325,50 @@ class UPSClient:
             total_minutes = message.get('total_minutes')
             timestamp = message.get('timestamp')
             logger.info(f"UPS Status Update - Total Minutes: {total_minutes}, Timestamp: {timestamp}")
-            # Here you could implement logic based on remaining time
-            # For example, shutdown if total_minutes < threshold
+
         elif msg_type == 'shutdown':
-            logger.warning(f"SHUTDOWN command received: {message.get('reason', 'No reason provided')}")
-            # Here you would implement the actual shutdown logic
-            # For now, just log it
+            reason = message.get('reason', 'No reason provided')
+            seconds_to_shutdown = message.get('seconds_to_shutdown', 0)
+            logger.warning(f"SHUTDOWN command received - Type: {msg_type}, Reason: {reason}, Seconds to shutdown: {seconds_to_shutdown}")
+            # Implement the actual shutdown logic
+            threading.Thread(target=self._execute_shutdown, args=(seconds_to_shutdown,), daemon=True).start()
+
         elif msg_type == 'command':
             command = message.get('command')
             logger.info(f"Command received: {command}")
             # Handle other commands here
         else:
             logger.info(f"Unknown message type received: {message}")
+    
+    def _execute_shutdown(self, seconds_to_shutdown: int):
+        """Execute system shutdown after specified delay."""
+        try:
+            logger.critical(f"System shutdown initiated - waiting {seconds_to_shutdown} seconds...")
+            
+            # Wait for the specified delay
+            time.sleep(seconds_to_shutdown)
+            
+            logger.critical("Executing system shutdown NOW!")
+            
+            # Detect OS and execute appropriate shutdown command
+            system = platform.system()
+            
+            if system == "Linux" or system == "Darwin":  # Linux or macOS
+                # Assume running as root, no sudo needed
+                # -h = halt, now = immediately
+                subprocess.run(['shutdown', '-h', 'now'], check=True)
+            elif system == "Windows":
+                # Windows shutdown command
+                # /s = shutdown, /t 0 = timeout 0 seconds, /f = force
+                subprocess.run(['shutdown', '/s', '/t', '0', '/f'], check=True)
+            else:
+                logger.error(f"Unsupported operating system: {system}")
+                return
+                
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to execute shutdown command: {e}")
+        except Exception as e:
+            logger.error(f"Error during shutdown execution: {e}")
 
 
 def main():
