@@ -18,8 +18,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-UDP_BROADCAST_PORT = 5225
-TCP_SERVER_PORT = 5226
+UDP_BROADCAST_PORT = 5225   # sudo ufw allow 5225/udp
+TCP_SERVER_PORT = 5226      # sudo ufw allow 5226/tcp
+# check with sudo ufw status
 DISCOVERY_MESSAGE = b"UPS_DISCOVER"
 HEARTBEAT_TIMEOUT = 90  # 90 seconds = 30s + max 30s random + 30s buffer
 

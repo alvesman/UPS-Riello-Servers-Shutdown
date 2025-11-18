@@ -113,7 +113,38 @@ class UPSClient:
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             udp_socket.settimeout(5.0)
             
-            # Send broadcast
+            # Try localhost first (for same-machine testing)
+            # Many systems don't loop broadcast packets back to localhost
+            try:
+                logger.debug(f"Trying localhost discovery...")
+                udp_socket.sendto(DISCOVERY_MESSAGE, ('127.0.0.1', UDP_BROADCAST_PORT))
+                
+                try:
+                    data, server_addr = udp_socket.recvfrom(1024)
+                    response = json.loads(data.decode('utf-8'))
+                    
+                    # Get server IP from response, or use source address from UDP packet
+                    server_ip = response.get('server_ip', '')
+                    if not server_ip or server_ip == '0.0.0.0':
+                        # Use the source IP from the UDP response
+                        server_ip = server_addr[0]
+                        logger.debug(f"Using UDP source address: {server_ip}")
+                    
+                    tcp_port = response.get('tcp_port')
+                    
+                    if tcp_port:
+                        self.server_address = (server_ip, tcp_port)
+                        logger.info(f"Server found at {self.server_address}")
+                        udp_socket.close()
+                        return True
+                
+                except socket.timeout:
+                    logger.debug("No response from localhost")
+            
+            except Exception as e:
+                logger.debug(f"Localhost discovery failed: {e}")
+            
+            # Try broadcast to network
             broadcast_addr = ('<broadcast>', UDP_BROADCAST_PORT)
             udp_socket.sendto(DISCOVERY_MESSAGE, broadcast_addr)
             logger.debug(f"Sent discovery broadcast to {broadcast_addr}")
@@ -139,7 +170,7 @@ class UPSClient:
                     return True
             
             except socket.timeout:
-                logger.debug("No server response received")
+                logger.debug("No server response received from broadcast")
             
             udp_socket.close()
             return False
