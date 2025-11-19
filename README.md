@@ -1,17 +1,6 @@
 # Riello UPS shutdown
 # Server 
-The server components must be deployed in the last machine to be shutdown.
-
-### Prerequisites
-
-#### Install Python Dependencies
-
-```bash
-# Install system-wide Python packages (required for Streamlit)
-sudo pip3 install streamlit pandas --break-system-packages
-```
-
-**Note:** The UPS server now uses direct HTTP/JSON API access to monitor the UPS, eliminating the need for Chrome, ChromeDriver, and Selenium.
+**The server components must be deployed in the last machine to be shutdown!**
 
 ### Install the UPSserver as a service
 
