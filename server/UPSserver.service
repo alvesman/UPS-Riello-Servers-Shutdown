@@ -1,0 +1,43 @@
+[Unit]
+Description=UPS Server - Monitors UPS and manages client shutdowns
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# IMPORTANT: Must run as root to execute system shutdown commands
+# and to run Chrome with --no-sandbox flag in headless mode
+User=root
+Group=root
+WorkingDirectory=/opt/UPSserver
+
+# Python environment
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+
+# Chrome/Selenium environment variables for headless operation
+Environment="DISPLAY="
+Environment="CHROME_BIN=/usr/bin/google-chrome"
+Environment="CHROME_DRIVER=/usr/bin/chromedriver"
+
+# Prevent Chrome from using /dev/shm (limited in some systems)
+Environment="TMPDIR=/tmp"
+
+# Logging to files (as per README)
+StandardOutput=append:/var/log/UPSserver.log
+StandardError=append:/var/log/UPSserver_error.log
+
+# Restart policy
+Restart=always
+RestartSec=30
+
+# Execute the server
+ExecStart=/usr/bin/python3 /opt/UPSserver/UPSserver.py
+
+# Clean shutdown
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

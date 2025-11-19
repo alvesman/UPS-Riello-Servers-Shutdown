@@ -19,18 +19,36 @@ try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
     from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
     from selenium.common.exceptions import TimeoutException, WebDriverException
 except ImportError:
     print("Error: Selenium not installed", file=sys.stderr)
     print("Install with: pip install selenium", file=sys.stderr)
     sys.exit(1)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging with custom handlers
+# INFO and WARNING go to stdout (captured by StandardOutput in systemd)
+# ERROR and CRITICAL go to stderr (captured by StandardError in systemd)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Handler for INFO and WARNING -> stdout
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+stdout_handler.setFormatter(formatter)
+stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
+
+# Handler for ERROR and CRITICAL -> stderr
+stderr_handler = logging.StreamHandler(sys.stderr)
+stderr_handler.setLevel(logging.ERROR)
+stderr_handler.setFormatter(formatter)
+
+# Add handlers to logger
+logger.addHandler(stdout_handler)
+logger.addHandler(stderr_handler)
 
 # Configuration
 UDP_BROADCAST_PORT = 5225
@@ -78,26 +96,68 @@ class ReadUPSMinutes:
         driver = None
         
         try:
-            # Configure Chrome options (headless mode)
+            # Configure Chrome options (headless mode with service compatibility)
             chrome_options = Options()
-            chrome_options.add_argument('--headless')
+            
+            # CRITICAL: --no-sandbox MUST be first for systemd services
+            # Chrome refuses to run as root without this flag
             chrome_options.add_argument('--no-sandbox')
+            
+            # Headless mode - required for services without display
+            chrome_options.add_argument('--headless=new')  # Use new headless mode
+            
+            # Disable /dev/shm usage (limited in containers/services)
             chrome_options.add_argument('--disable-dev-shm-usage')
+            
+            # Disable GPU hardware acceleration (not available in services)
             chrome_options.add_argument('--disable-gpu')
+            
+            # Additional stability flags for service environments
+            chrome_options.add_argument('--disable-software-rasterizer')
+            chrome_options.add_argument('--disable-extensions')
             chrome_options.add_argument('--disable-web-security')
             chrome_options.add_argument('--ignore-certificate-errors')
             chrome_options.add_argument('--ignore-ssl-errors')
-            chrome_options.add_argument('--disable-extensions')
-            chrome_options.add_argument('--disable-logging')
+            
+            # Memory and resource optimization
+            chrome_options.add_argument('--disable-background-networking')
+            chrome_options.add_argument('--disable-background-timer-throttling')
+            chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+            chrome_options.add_argument('--disable-breakpad')
+            chrome_options.add_argument('--disable-component-extensions-with-background-pages')
+            chrome_options.add_argument('--disable-features=TranslateUI')
+            chrome_options.add_argument('--disable-ipc-flooding-protection')
+            chrome_options.add_argument('--disable-renderer-backgrounding')
+            
+            # Set a reasonable window size for rendering
+            chrome_options.add_argument('--window-size=1920,1080')
+            
+            # Set user data directory to avoid permission issues
+            chrome_options.add_argument('--user-data-dir=/tmp/chrome-user-data')
+            
+            # Disable automation detection
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
+            
+            # Suppress logging output
             chrome_options.add_argument('--log-level=3')
             chrome_options.add_argument('--silent')
             
+            logger.debug(f"Initializing Chrome WebDriver for URL: {url}")
+            
+            # Explicitly specify ChromeDriver location to avoid Selenium Manager issues
+            service = Service(executable_path='/usr/bin/chromedriver')
+            
             # Initialize WebDriver
-            driver = webdriver.Chrome(options=chrome_options)
+            driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.set_page_load_timeout(30)
             
+            logger.debug(f"Chrome WebDriver initialized successfully")
+            
             # Load the page
+            logger.debug(f"Loading page: {url}")
             driver.get(url)
+            logger.debug(f"Page loaded, waiting {wait_time} seconds for JavaScript")
             
             # Wait for JavaScript to update values
             time.sleep(wait_time)
@@ -111,20 +171,26 @@ class ReadUPSMinutes:
                 'span[class*="autonomy"]'
             ]
             
+            logger.debug(f"Searching for autonomy element using {len(selectors)} selectors")
             for selector in selectors:
                 try:
                     autonomy_element = driver.find_element(By.CSS_SELECTOR, selector)
                     if autonomy_element:
+                        logger.debug(f"Found autonomy element using selector: {selector}")
                         break
-                except:
+                except Exception as e:
+                    logger.debug(f"Selector '{selector}' failed: {str(e)}")
                     continue
             
             if not autonomy_element:
+                logger.warning("Failed to find autonomy element with any selector")
                 return None
             
             autonomy_value = autonomy_element.text.strip()
+            logger.debug(f"Autonomy value found: '{autonomy_value}'")
             
             if not autonomy_value or autonomy_value == '-':
+                logger.warning(f"Invalid autonomy value: '{autonomy_value}'")
                 return None
             
             # Parse HH:MM format
@@ -132,17 +198,42 @@ class ReadUPSMinutes:
             if match:
                 hours, minutes = match.groups()
                 total_minutes = int(hours) * 60 + int(minutes)
+                logger.info(f"Successfully parsed UPS autonomy: {total_minutes} minutes ({hours}h {minutes}m)")
                 return total_minutes
+            else:
+                logger.warning(f"Failed to parse autonomy value format: '{autonomy_value}'")
             
             return None
             
-        except (TimeoutException, WebDriverException):
+        except TimeoutException as e:
+            logger.error(f"Timeout loading UPS page: {url}")
+            logger.error(f"TimeoutException details: {str(e)}")
             return None
-        except Exception:
+        except WebDriverException as e:
+            logger.error(f"WebDriver error accessing UPS: {url}")
+            logger.error(f"WebDriverException details: {str(e)}")
+            logger.error("This error often occurs when running as a systemd service.")
+            logger.error("Troubleshooting tips:")
+            logger.error("  1. Ensure Chrome/Chromium is installed: google-chrome --version")
+            logger.error("  2. Ensure ChromeDriver is installed and in PATH")
+            logger.error("  3. Check service has proper permissions")
+            logger.error("  4. Verify DISPLAY environment variable is not required")
+            logger.error("  5. Check system logs: journalctl -u <service-name> -n 50")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error in get_total_minutes: {type(e).__name__}")
+            logger.error(f"Error details: {str(e)}")
+            logger.error(f"URL: {url}")
+            import traceback
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
             return None
         finally:
             if driver:
-                driver.quit()
+                try:
+                    logger.debug("Closing Chrome WebDriver")
+                    driver.quit()
+                except Exception as e:
+                    logger.warning(f"Error closing WebDriver: {str(e)}")
         
 class UPSServer:
     """Main server class for UPS monitoring system."""
