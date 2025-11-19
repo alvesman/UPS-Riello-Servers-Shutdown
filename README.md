@@ -1,6 +1,4 @@
 # Riello UPS shutdown
-pip3 install streamlit --break-system-packages
-
 # Server 
 The server components must be deployed in the last machine to be shutdown.
 
