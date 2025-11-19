@@ -1,0 +1,33 @@
+sudo mkdir -p /opt/UPSclient
+sudo cp UPSclient.py /opt/UPSclient/
+
+# Create log files
+sudo touch /var/log/UPSclient.log /var/log/UPSclient_error.log
+sudo chmod 644 /var/log/UPSclient.log /var/log/UPSclient_error.log
+
+sudo nano /etc/systemd/system/UPSclient.service
+```
+```bash
+[Unit]
+Description=Python UPSclient Service
+After=network.target
+
+[Service]
+Type=simple
+# Run as root to ensure shutdown permissions
+User=root
+Group=root
+WorkingDirectory=/opt/UPSclient
+ExecStart=/usr/bin/python3 /opt/UPSclient/UPSclient.py
+Restart=always
+RestartSec=30
+
+# Optional: set environment variables if needed
+# Environment="PYTHONUNBUFFERED=1"
+
+# Optional: logging
+StandardOutput=append:/var/log/UPSclient.log
+StandardError=append:/var/log/UPSclient_error.log
+
+[Install]
+WantedBy=multi-user.target

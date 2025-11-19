@@ -8,29 +8,39 @@ import threading
 import json
 import time
 import logging
-import re
 import sqlite3
 import platform
 import subprocess
 import sys
+import urllib.request
+import urllib.error
+import ssl
 from typing import Dict, Tuple
 from datetime import datetime
-try:
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.chrome.options import Options
-    from selenium.common.exceptions import TimeoutException, WebDriverException
-except ImportError:
-    print("Error: Selenium not installed", file=sys.stderr)
-    print("Install with: pip install selenium", file=sys.stderr)
-    sys.exit(1)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging with custom handlers
+# INFO and WARNING go to stdout (captured by StandardOutput in systemd)
+# ERROR and CRITICAL go to stderr (captured by StandardError in systemd)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Handler for INFO and WARNING -> stdout
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+stdout_handler.setFormatter(formatter)
+stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
+
+# Handler for ERROR and CRITICAL -> stderr
+stderr_handler = logging.StreamHandler(sys.stderr)
+stderr_handler.setLevel(logging.ERROR)
+stderr_handler.setFormatter(formatter)
+
+# Add handlers to logger
+logger.addHandler(stdout_handler)
+logger.addHandler(stderr_handler)
 
 # Configuration
 UDP_BROADCAST_PORT = 5225
@@ -40,7 +50,7 @@ DISCOVERY_MESSAGE = b"UPS_DISCOVER"
 HEARTBEAT_TIMEOUT = 90  # 90 seconds = 30s + max 30s random + 30s buffer
 
 # UPS Monitoring Configuration
-UPS_URL = 'https://192.168.155.55/'  # Default UPS dashboard URL
+UPS_URL = 'https://192.168.155.55/json/live_data.json'  # Default UPS data
 UPS_CHECK_INTERVAL = 60  # Check UPS every 60 seconds
 
 class ClientConnection:
@@ -62,87 +72,68 @@ class ClientConnection:
         return time.time() - self.last_heartbeat < HEARTBEAT_TIMEOUT
 
 class ReadUPSMinutes:
-    """Class to read UPS minutes using get_total_minutes function."""
+    """Class to read UPS minutes using direct JSON API access."""
     @staticmethod
     def get_total_minutes(url, wait_time=5):
         """
-        Extract total minutes of autonomy time
+        Extract total minutes of autonomy time from UPS JSON API
         
         Args:
-            url (str): URL to the MPW-MCU dashboard
-            wait_time (int): Seconds to wait for JavaScript to load
+            url (str): URL to the UPS JSON endpoint (e.g., https://192.168.155.55/json/live_data.json)
+            wait_time (int): Unused parameter (kept for backward compatibility)
             
         Returns:
             int: Total minutes or None if failed
         """
-        driver = None
-        
         try:
-            # Configure Chrome options (headless mode)
-            chrome_options = Options()
-            chrome_options.add_argument('--headless')
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--disable-web-security')
-            chrome_options.add_argument('--ignore-certificate-errors')
-            chrome_options.add_argument('--ignore-ssl-errors')
-            chrome_options.add_argument('--disable-extensions')
-            chrome_options.add_argument('--disable-logging')
-            chrome_options.add_argument('--log-level=3')
-            chrome_options.add_argument('--silent')
+            logger.debug(f"Fetching UPS data from URL: {url}")
             
-            # Initialize WebDriver
-            driver = webdriver.Chrome(options=chrome_options)
-            driver.set_page_load_timeout(30)
+            # Create SSL context that doesn't verify certificates (like curl -k)
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
             
-            # Load the page
-            driver.get(url)
+            # Create request with SSL context
+            request = urllib.request.Request(url)
             
-            # Wait for JavaScript to update values
-            time.sleep(wait_time)
-            
-            # Try multiple selectors to find the autonomy element
-            autonomy_element = None
-            selectors = [
-                'span.time.autonomy',
-                'span.autonomy',
-                '.time.autonomy',
-                'span[class*="autonomy"]'
-            ]
-            
-            for selector in selectors:
-                try:
-                    autonomy_element = driver.find_element(By.CSS_SELECTOR, selector)
-                    if autonomy_element:
-                        break
-                except:
-                    continue
-            
-            if not autonomy_element:
-                return None
-            
-            autonomy_value = autonomy_element.text.strip()
-            
-            if not autonomy_value or autonomy_value == '-':
-                return None
-            
-            # Parse HH:MM format
-            match = re.match(r'^(\d{1,2}):(\d{2})$', autonomy_value)
-            if match:
-                hours, minutes = match.groups()
-                total_minutes = int(hours) * 60 + int(minutes)
+            # Fetch the JSON data
+            with urllib.request.urlopen(request, context=ssl_context, timeout=10) as response:
+                data = response.read().decode('utf-8')
+                json_data = json.loads(data)
+                
+                # Extract autonomy field
+                if 'autonomy' not in json_data:
+                    logger.warning(f"'autonomy' field not found in JSON response from {url}")
+                    return None
+                
+                autonomy_minutes = json_data['autonomy']
+                
+                # Validate that it's a number
+                if not isinstance(autonomy_minutes, (int, float)):
+                    logger.warning(f"Invalid autonomy value type: {type(autonomy_minutes).__name__}")
+                    return None
+                
+                # Convert to integer
+                total_minutes = int(autonomy_minutes)
+                logger.info(f"Successfully retrieved UPS autonomy: {total_minutes} minutes")
                 return total_minutes
-            
+                
+        except urllib.error.HTTPError as e:
+            logger.error(f"HTTP error accessing UPS at {url}: {e.code} {e.reason}")
             return None
-            
-        except (TimeoutException, WebDriverException):
+        except urllib.error.URLError as e:
+            logger.error(f"URL error accessing UPS at {url}: {str(e.reason)}")
             return None
-        except Exception:
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response from {url}: {str(e)}")
             return None
-        finally:
-            if driver:
-                driver.quit()
+        except Exception as e:
+            logger.error(f"Unexpected error in get_total_minutes: {type(e).__name__}")
+            logger.error(f"Error details: {str(e)}")
+            logger.error(f"URL: {url}")
+            import traceback
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
+            return None
         
 class UPSServer:
     """Main server class for UPS monitoring system."""

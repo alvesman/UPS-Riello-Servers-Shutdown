@@ -1,35 +1,37 @@
 # Riello UPS shutdown
-
-## Server 
-The server components must be deployed in the last machine to shutdown.
+# Server 
+**The server components must be deployed in the last machine to be shutdown!**
 
 ### Install the UPSserver as a service
+
 ```bash
-sudo nano /etc/systemd/system/UPSserver.service
+# Create installation directory
+sudo mkdir -p /opt/UPSserver
+
+# Copy server files from the server directory
+sudo cp UPSserver.py /opt/UPSserver/
+sudo cp UPSserver.service /etc/systemd/system/
+sudo cp UPSserver.logrotate /etc/logrotate.d/UPSserver
+
+# Create log files
+sudo touch /var/log/UPSserver.log /var/log/UPSserver_error.log
+sudo chmod 644 /var/log/UPSserver.log /var/log/UPSserver_error.log
 ```
+
+**Important Note about User Privileges:**
+
+The UPS server service **must run as root** because it needs to execute system shutdown commands when UPS battery is critical.
+
+### Setup log rotation
 ```bash
-[Unit]
-Description=Python UPSserver Service
-After=network.target
+# Logrotate configuration already copied in previous step
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/UPSserver
 
-[Service]
-Type=simple
-User=your-username
-WorkingDirectory=/path/to/your/script
-ExecStart=/usr/bin/python3 /path/to/your/script/UPSserver.py
-Restart=always
-RestartSec=30
-
-# Optional: set environment variables if needed
-# Environment="PYTHONUNBUFFERED=1"
-
-# Optional: logging
-StandardOutput=append:/var/log/UPSserver.log
-StandardError=append:/var/log/UPSserver_error.log
-
-[Install]
-WantedBy=multi-user.target
+# Force rotation (optional, for testing)
+sudo logrotate -f /etc/logrotate.d/UPSserver
 ```
+
 ### Enable and start the service
 ```bash
 # Reload systemd to recognize the new service
@@ -45,6 +47,18 @@ sudo systemctl start UPSserver.service
 sudo systemctl status UPSserver.service
 ```
 
+### Monitoring and logs
+```bash
+# View log files directly
+tail -f /var/log/UPSserver.log -n 50
+tail -f /var/log/UPSserver_error.log -n 50
+```
+
+### Security Considerations
+
+**Why the service runs as root:**
+The server must execute `shutdown -h now` when UPS battery is critical. Only root can execute these commands.
+
 ### Useful commands
 ```bash
 # Stop the service
@@ -58,35 +72,40 @@ sudo journalctl -u UPSserver.service -f
 
 # View recent logs
 sudo journalctl -u UPSserver.service -n 50
+
+# Check service status
+sudo systemctl status UPSserver.service
+
+# Disable service (don't start on boot)
+sudo systemctl disable UPSserver.service
+
+# Re-enable service
+sudo systemctl enable UPSserver.service
 ```
 
 ### Install the UPSdashboard as a service
 ```bash
-sudo nano /etc/systemd/system/UPSdashboard.service
+sudo cp UPSdashboard.py /opt/UPSserver/
+sudo cp UPSdashboard.service /etc/systemd/system/
 ```
+Create log files
 ```bash
-[Unit]
-Description=Python UPSdashboard Service (Streamlit)
-After=network.target
-
-[Service]
-Type=simple
-User=your-username
-WorkingDirectory=/path/to/your/script
-ExecStart=/usr/bin/python3 -m streamlit run /path/to/your/script/UPSdashboard.py --server.port=8501 --server.address=0.0.0.0
-Restart=always
-RestartSec=30
-
-# Optional: set environment variables if needed
-# Environment="PYTHONUNBUFFERED=1"
-
-# Optional: logging
-StandardOutput=append:/var/log/UPSdashboard.log
-StandardError=append:/var/log/UPSdashboard_error.log
-
-[Install]
-WantedBy=multi-user.target
+sudo touch /var/log/UPSdashboard.log /var/log/UPSdashboard_error.log
+sudo chmod 644 /var/log/UPSdashboard.log /var/log/UPSdashboard_error.log
 ```
+
+### Setup log rotation
+```bash
+# Copy logrotate configuration
+sudo cp UPSdashboard.logrotate /etc/logrotate.d/UPSdashboard
+
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/UPSdashboard
+
+# Force rotation (optional, for testing)
+sudo logrotate -f /etc/logrotate.d/UPSdashboard
+```
+
 ### Enable and start the service
 ```bash
 # Reload systemd to recognize the new service
@@ -111,45 +130,35 @@ sudo systemctl stop UPSdashboard.service
 sudo systemctl restart UPSdashboard.service
 
 # View logs
-sudo journalctl -u UPSdashboard.service -f
-
-# View recent logs
-sudo journalctl -u UPSdashboard.service -n 50
-
-# Access the dashboard
-# Open your browser and navigate to: http://your-server-ip:8501
+tail -f /var/log/UPSdashboard.log -n 50
+tail -f /var/log/UPSdashboard_error.log -n 50
 ```
-
-## Client
+### Access the dashboard
+Open your browser and navigate to:
+```bash
+http://your-server-ip:8501
+```
+# Client
 To be installed on all machines that should be shutdown when UPS battery is bellow a threshold configured in the UPSdashboard.
 
 ### Install the UPSclient as a service
 ```bash
-sudo nano /etc/systemd/system/UPSclient.service
+sudo mkdir -p /opt/UPSclient
+sudo cp UPSclient.py /opt/UPSclient/
+sudo cp UPSclient.service /etc/systemd/system/
 ```
+### Setup log rotation
 ```bash
-[Unit]
-Description=Python UPSclient Service
-After=network.target
+# Copy logrotate configuration
+sudo cp UPSclient.logrotate /etc/logrotate.d/UPSclient
 
-[Service]
-Type=simple
-User=your-username
-WorkingDirectory=/path/to/your/script
-ExecStart=/usr/bin/python3 /path/to/your/script/UPSclient.py
-Restart=always
-RestartSec=30
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/UPSclient
 
-# Optional: set environment variables if needed
-# Environment="PYTHONUNBUFFERED=1"
-
-# Optional: logging
-StandardOutput=append:/var/log/UPSclient.log
-StandardError=append:/var/log/UPSclient_error.log
-
-[Install]
-WantedBy=multi-user.target
+# Force rotation (optional, for testing)
+sudo logrotate -f /etc/logrotate.d/UPSclient
 ```
+
 ### Enable and start the service
 ```bash
 # Reload systemd to recognize the new service
@@ -174,8 +183,11 @@ sudo systemctl stop UPSclient.service
 sudo systemctl restart UPSclient.service
 
 # View logs
-sudo journalctl -u UPSclient.service -f
-
-# View recent logs
-sudo journalctl -u UPSclient.service -n 50
+tail /var/log/UPSclient.log -n 50 -f
+tail /var/log/UPSclient.log -n 50
+tail /var/log/UPSclient_error.log -n 50
 ```
+
+
+sudo visudo
+dtx ALL=(ALL) NOPASSWD: /sbin/shutdown, /bin/systemctl poweroff

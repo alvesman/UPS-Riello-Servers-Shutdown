@@ -1,0 +1,41 @@
+/var/log/UPSserver.log /var/log/UPSserver_error.log {
+    # Rotate daily
+    daily
+    
+    # Keep 7 days of logs
+    rotate 7
+    
+    # Maximum size before rotation (10MB)
+    size 10M
+    
+    # Delete logs older than 7 days
+    maxage 7
+    
+    # Compress old logs
+    compress
+    
+    # Delay compression until next rotation
+    delaycompress
+    
+    # Don't error if log file is missing
+    missingok
+    
+    # Don't rotate if log is empty
+    notifempty
+    
+    # Create new log file with these permissions
+    create 0644 root root
+    
+    # Use date as suffix for rotated files
+    dateext
+    
+    # Append .log after date extension
+    dateformat -%Y%m%d
+    extension .log
+    
+    # Script to run after rotation
+    postrotate
+        # Reload systemd service to reopen log files
+        systemctl reload UPSserver.service > /dev/null 2>&1 || true
+    endscript
+}

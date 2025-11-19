@@ -13,12 +13,29 @@ import platform
 import subprocess
 import sys
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging with custom handlers
+# INFO and WARNING go to stdout (captured by StandardOutput in systemd)
+# ERROR and CRITICAL go to stderr (captured by StandardError in systemd)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Handler for INFO and WARNING -> stdout
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+stdout_handler.setFormatter(formatter)
+stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
+
+# Handler for ERROR and CRITICAL -> stderr
+stderr_handler = logging.StreamHandler(sys.stderr)
+stderr_handler.setLevel(logging.ERROR)
+stderr_handler.setFormatter(formatter)
+
+# Add handlers to logger
+logger.addHandler(stdout_handler)
+logger.addHandler(stderr_handler)
 
 # Configuration
 UDP_BROADCAST_PORT = 5225
