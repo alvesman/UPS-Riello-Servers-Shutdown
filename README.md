@@ -56,8 +56,7 @@ tail -f /var/log/UPSserver_error.log -n 50
 
 ### Security Considerations
 
-**Why the service runs as root:**
-The server must execute `shutdown -h now` when UPS battery is critical. Only root can execute these commands.
+The dashboard does not provide authentication at his moment.
 
 ### Useful commands
 ```bash
