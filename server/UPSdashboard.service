@@ -8,7 +8,7 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/opt/UPSserver
-ExecStart=/usr/bin/python3 -m streamlit run /opt/UPSserver/UPSdashboard.py --server.port=8501 --server.address=0.0.0.0
+ExecStart=/usr/bin/python3 /opt/UPSserver/UPSdashboard.py
 Restart=always
 RestartSec=30
 

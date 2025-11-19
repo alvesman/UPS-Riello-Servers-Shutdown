@@ -6,7 +6,6 @@ Wants=network-online.target
 [Service]
 Type=simple
 # IMPORTANT: Must run as root to execute system shutdown commands
-# and to run Chrome with --no-sandbox flag in headless mode
 User=root
 Group=root
 WorkingDirectory=/opt/UPSserver
@@ -15,15 +14,7 @@ WorkingDirectory=/opt/UPSserver
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 
-# Chrome/Selenium environment variables for headless operation
-Environment="DISPLAY="
-Environment="CHROME_BIN=/usr/bin/google-chrome"
-Environment="CHROME_DRIVER=/usr/bin/chromedriver"
-
-# Prevent Chrome from using /dev/shm (limited in some systems)
-Environment="TMPDIR=/tmp"
-
-# Logging to files (as per README)
+# Logging to files
 StandardOutput=append:/var/log/UPSserver.log
 StandardError=append:/var/log/UPSserver_error.log
 
