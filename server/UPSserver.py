@@ -8,23 +8,15 @@ import threading
 import json
 import time
 import logging
-import re
 import sqlite3
 import platform
 import subprocess
 import sys
+import urllib.request
+import urllib.error
+import ssl
 from typing import Dict, Tuple
 from datetime import datetime
-try:
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
-    from selenium.common.exceptions import TimeoutException, WebDriverException
-except ImportError:
-    print("Error: Selenium not installed", file=sys.stderr)
-    print("Install with: pip install selenium", file=sys.stderr)
-    sys.exit(1)
 
 # Configure logging with custom handlers
 # INFO and WARNING go to stdout (captured by StandardOutput in systemd)
@@ -58,7 +50,7 @@ DISCOVERY_MESSAGE = b"UPS_DISCOVER"
 HEARTBEAT_TIMEOUT = 90  # 90 seconds = 30s + max 30s random + 30s buffer
 
 # UPS Monitoring Configuration
-UPS_URL = 'https://192.168.155.55/'  # Default UPS dashboard URL
+UPS_URL = 'https://192.168.155.55/json/live_data.json'  # Default UPS data
 UPS_CHECK_INTERVAL = 60  # Check UPS every 60 seconds
 
 class ClientConnection:
@@ -80,145 +72,60 @@ class ClientConnection:
         return time.time() - self.last_heartbeat < HEARTBEAT_TIMEOUT
 
 class ReadUPSMinutes:
-    """Class to read UPS minutes using get_total_minutes function."""
+    """Class to read UPS minutes using direct JSON API access."""
     @staticmethod
     def get_total_minutes(url, wait_time=5):
         """
-        Extract total minutes of autonomy time
+        Extract total minutes of autonomy time from UPS JSON API
         
         Args:
-            url (str): URL to the MPW-MCU dashboard
-            wait_time (int): Seconds to wait for JavaScript to load
+            url (str): URL to the UPS JSON endpoint (e.g., https://192.168.155.55/json/live_data.json)
+            wait_time (int): Unused parameter (kept for backward compatibility)
             
         Returns:
             int: Total minutes or None if failed
         """
-        driver = None
-        
         try:
-            # Configure Chrome options (headless mode with service compatibility)
-            chrome_options = Options()
+            logger.debug(f"Fetching UPS data from URL: {url}")
             
-            # CRITICAL: --no-sandbox MUST be first for systemd services
-            # Chrome refuses to run as root without this flag
-            chrome_options.add_argument('--no-sandbox')
+            # Create SSL context that doesn't verify certificates (like curl -k)
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
             
-            # Headless mode - required for services without display
-            chrome_options.add_argument('--headless=new')  # Use new headless mode
+            # Create request with SSL context
+            request = urllib.request.Request(url)
             
-            # Disable /dev/shm usage (limited in containers/services)
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            
-            # Disable GPU hardware acceleration (not available in services)
-            chrome_options.add_argument('--disable-gpu')
-            
-            # Additional stability flags for service environments
-            chrome_options.add_argument('--disable-software-rasterizer')
-            chrome_options.add_argument('--disable-extensions')
-            chrome_options.add_argument('--disable-web-security')
-            chrome_options.add_argument('--ignore-certificate-errors')
-            chrome_options.add_argument('--ignore-ssl-errors')
-            
-            # Memory and resource optimization
-            chrome_options.add_argument('--disable-background-networking')
-            chrome_options.add_argument('--disable-background-timer-throttling')
-            chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-            chrome_options.add_argument('--disable-breakpad')
-            chrome_options.add_argument('--disable-component-extensions-with-background-pages')
-            chrome_options.add_argument('--disable-features=TranslateUI')
-            chrome_options.add_argument('--disable-ipc-flooding-protection')
-            chrome_options.add_argument('--disable-renderer-backgrounding')
-            
-            # Set a reasonable window size for rendering
-            chrome_options.add_argument('--window-size=1920,1080')
-            
-            # Set user data directory to avoid permission issues
-            chrome_options.add_argument('--user-data-dir=/tmp/chrome-user-data')
-            
-            # Disable automation detection
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
-            
-            # Suppress logging output
-            chrome_options.add_argument('--log-level=3')
-            chrome_options.add_argument('--silent')
-            
-            logger.debug(f"Initializing Chrome WebDriver for URL: {url}")
-            
-            # Explicitly specify ChromeDriver location to avoid Selenium Manager issues
-            service = Service(executable_path='/usr/bin/chromedriver')
-            
-            # Initialize WebDriver
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-            driver.set_page_load_timeout(30)
-            
-            logger.debug(f"Chrome WebDriver initialized successfully")
-            
-            # Load the page
-            logger.debug(f"Loading page: {url}")
-            driver.get(url)
-            logger.debug(f"Page loaded, waiting {wait_time} seconds for JavaScript")
-            
-            # Wait for JavaScript to update values
-            time.sleep(wait_time)
-            
-            # Try multiple selectors to find the autonomy element
-            autonomy_element = None
-            selectors = [
-                'span.time.autonomy',
-                'span.autonomy',
-                '.time.autonomy',
-                'span[class*="autonomy"]'
-            ]
-            
-            logger.debug(f"Searching for autonomy element using {len(selectors)} selectors")
-            for selector in selectors:
-                try:
-                    autonomy_element = driver.find_element(By.CSS_SELECTOR, selector)
-                    if autonomy_element:
-                        logger.debug(f"Found autonomy element using selector: {selector}")
-                        break
-                except Exception as e:
-                    logger.debug(f"Selector '{selector}' failed: {str(e)}")
-                    continue
-            
-            if not autonomy_element:
-                logger.warning("Failed to find autonomy element with any selector")
-                return None
-            
-            autonomy_value = autonomy_element.text.strip()
-            logger.debug(f"Autonomy value found: '{autonomy_value}'")
-            
-            if not autonomy_value or autonomy_value == '-':
-                logger.warning(f"Invalid autonomy value: '{autonomy_value}'")
-                return None
-            
-            # Parse HH:MM format
-            match = re.match(r'^(\d{1,2}):(\d{2})$', autonomy_value)
-            if match:
-                hours, minutes = match.groups()
-                total_minutes = int(hours) * 60 + int(minutes)
-                logger.info(f"Successfully parsed UPS autonomy: {total_minutes} minutes ({hours}h {minutes}m)")
+            # Fetch the JSON data
+            with urllib.request.urlopen(request, context=ssl_context, timeout=10) as response:
+                data = response.read().decode('utf-8')
+                json_data = json.loads(data)
+                
+                # Extract autonomy field
+                if 'autonomy' not in json_data:
+                    logger.warning(f"'autonomy' field not found in JSON response from {url}")
+                    return None
+                
+                autonomy_minutes = json_data['autonomy']
+                
+                # Validate that it's a number
+                if not isinstance(autonomy_minutes, (int, float)):
+                    logger.warning(f"Invalid autonomy value type: {type(autonomy_minutes).__name__}")
+                    return None
+                
+                # Convert to integer
+                total_minutes = int(autonomy_minutes)
+                logger.info(f"Successfully retrieved UPS autonomy: {total_minutes} minutes")
                 return total_minutes
-            else:
-                logger.warning(f"Failed to parse autonomy value format: '{autonomy_value}'")
-            
+                
+        except urllib.error.HTTPError as e:
+            logger.error(f"HTTP error accessing UPS at {url}: {e.code} {e.reason}")
             return None
-            
-        except TimeoutException as e:
-            logger.error(f"Timeout loading UPS page: {url}")
-            logger.error(f"TimeoutException details: {str(e)}")
+        except urllib.error.URLError as e:
+            logger.error(f"URL error accessing UPS at {url}: {str(e.reason)}")
             return None
-        except WebDriverException as e:
-            logger.error(f"WebDriver error accessing UPS: {url}")
-            logger.error(f"WebDriverException details: {str(e)}")
-            logger.error("This error often occurs when running as a systemd service.")
-            logger.error("Troubleshooting tips:")
-            logger.error("  1. Ensure Chrome/Chromium is installed: google-chrome --version")
-            logger.error("  2. Ensure ChromeDriver is installed and in PATH")
-            logger.error("  3. Check service has proper permissions")
-            logger.error("  4. Verify DISPLAY environment variable is not required")
-            logger.error("  5. Check system logs: journalctl -u <service-name> -n 50")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response from {url}: {str(e)}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error in get_total_minutes: {type(e).__name__}")
@@ -227,13 +134,6 @@ class ReadUPSMinutes:
             import traceback
             logger.error(f"Traceback:\n{traceback.format_exc()}")
             return None
-        finally:
-            if driver:
-                try:
-                    logger.debug("Closing Chrome WebDriver")
-                    driver.quit()
-                except Exception as e:
-                    logger.warning(f"Error closing WebDriver: {str(e)}")
         
 class UPSServer:
     """Main server class for UPS monitoring system."""

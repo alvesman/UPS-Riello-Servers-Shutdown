@@ -1,7 +1,7 @@
 # Riello UPS shutdown
 pip3 install streamlit --break-system-packages
 
-## Server 
+# Server 
 The server components must be deployed in the last machine to be shutdown.
 
 ### Prerequisites
@@ -9,27 +9,11 @@ The server components must be deployed in the last machine to be shutdown.
 #### Install Python Dependencies
 
 ```bash
-# Install system-wide Python packages (required for Selenium and Streamlit)
-sudo pip3 install streamlit selenium pandas --break-system-packages
+# Install system-wide Python packages (required for Streamlit)
+sudo pip3 install streamlit pandas --break-system-packages
 ```
 
-#### Install Google Chrome and ChromeDriver
-
-The UPS server uses Selenium with Chrome in headless mode to monitor the UPS web interface. This requires Google Chrome and ChromeDriver to be installed.
-
-**Automated Installation (Recommended):**
-
-```bash
-sudo python3 install_chrome.py
-```
-
-The script will:
-- Remove snap Chromium if installed
-- Install Google Chrome
-- Detect Chrome version
-- Install matching ChromeDriver
-- Test Chrome headless mode
-- Test Selenium integration
+**Note:** The UPS server now uses direct HTTP/JSON API access to monitor the UPS, eliminating the need for Chrome, ChromeDriver, and Selenium.
 
 ### Install the UPSserver as a service
 
@@ -49,11 +33,7 @@ sudo chmod 644 /var/log/UPSserver.log /var/log/UPSserver_error.log
 
 **Important Note about User Privileges:**
 
-The UPS server service **must run as root** for two critical reasons:
-1. It needs to execute system shutdown commands when UPS battery is critical
-2. Chrome/Selenium requires `--no-sandbox` flag in systemd service environments, which only works reliably as root
-
-The service file (UPSserver.service) is already configured to run as root. If you need a more secure setup with a dedicated user, see the "Security Considerations" section below.
+The UPS server service **must run as root** because it needs to execute system shutdown commands when UPS battery is critical.
 
 ### Setup log rotation
 ```bash
@@ -83,30 +63,14 @@ sudo systemctl status UPSserver.service
 ### Monitoring and logs
 ```bash
 # View log files directly
-tail -f /var/log/UPSserver.log
-tail -f /var/log/UPSserver_error.log
-
-# View recent logs
-tail -n 50 /var/log/UPSserver.log
-
-# View logs via journalctl
-sudo journalctl -u UPSserver.service -f
-
-# View recent logs via journalctl
-sudo journalctl -u UPSserver.service -n 50
-
-# Stop the service
-sudo systemctl stop UPSserver.service
-
-# Restart the service
-sudo systemctl restart UPSserver.service
+tail -f /var/log/UPSserver.log -n 50
+tail -f /var/log/UPSserver_error.log -n 50
 ```
 
 ### Security Considerations
 
 **Why the service runs as root:**
-1. **System Shutdown Capability**: The server must execute `shutdown -h now` when UPS battery is critical. Only root can execute these commands.
-2. **Chrome with --no-sandbox**: In systemd service environments without X11 display, Chrome requires the `--no-sandbox` flag, which only works reliably as root.
+The server must execute `shutdown -h now` when UPS battery is critical. Only root can execute these commands.
 
 ### Useful commands
 ```bash
@@ -134,36 +98,13 @@ sudo systemctl enable UPSserver.service
 
 ### Install the UPSdashboard as a service
 ```bash
-# Create log files
+sudo cp UPSdashboard.py /opt/UPSserver/
+sudo cp UPSdashboard.service /etc/systemd/system/
+```
+Create log files
+```bash
 sudo touch /var/log/UPSdashboard.log /var/log/UPSdashboard_error.log
 sudo chmod 644 /var/log/UPSdashboard.log /var/log/UPSdashboard_error.log
-sudo cp UPSdashboard.py /opt/UPSserver/
-sudo nano /etc/systemd/system/UPSdashboard.service
-```
-```bash
-[Unit]
-Description=Python UPSdashboard Service (Streamlit)
-After=network.target
-
-[Service]
-Type=simple
-# Run as root for consistency with UPSserver
-User=root
-Group=root
-WorkingDirectory=/opt/UPSserver
-ExecStart=/usr/bin/python3 -m streamlit run /opt/UPSserver/UPSdashboard.py --server.port=8501 --server.address=0.0.0.0
-Restart=always
-RestartSec=30
-
-# Optional: set environment variables if needed
-# Environment="PYTHONUNBUFFERED=1"
-
-# Optional: logging
-StandardOutput=append:/var/log/UPSdashboard.log
-StandardError=append:/var/log/UPSdashboard_error.log
-
-[Install]
-WantedBy=multi-user.target
 ```
 
 ### Setup log rotation
@@ -202,53 +143,22 @@ sudo systemctl stop UPSdashboard.service
 sudo systemctl restart UPSdashboard.service
 
 # View logs
-sudo journalctl -u UPSdashboard.service -f
-
-# View recent logs
-sudo journalctl -u UPSdashboard.service -n 50
-
-# Access the dashboard
-# Open your browser and navigate to: http://your-server-ip:8501
+tail -f /var/log/UPSdashboard.log -n 50
+tail -f /var/log/UPSdashboard_error.log -n 50
 ```
-
-## Client
+### Access the dashboard
+Open your browser and navigate to:
+```bash
+http://your-server-ip:8501
+```
+# Client
 To be installed on all machines that should be shutdown when UPS battery is bellow a threshold configured in the UPSdashboard.
 
 ### Install the UPSclient as a service
 ```bash
 sudo mkdir -p /opt/UPSclient
 sudo cp UPSclient.py /opt/UPSclient/
-
-# Create log files
-sudo touch /var/log/UPSclient.log /var/log/UPSclient_error.log
-sudo chmod 644 /var/log/UPSclient.log /var/log/UPSclient_error.log
-
-sudo nano /etc/systemd/system/UPSclient.service
-```
-```bash
-[Unit]
-Description=Python UPSclient Service
-After=network.target
-
-[Service]
-Type=simple
-# Run as root to ensure shutdown permissions
-User=root
-Group=root
-WorkingDirectory=/opt/UPSclient
-ExecStart=/usr/bin/python3 /opt/UPSclient/UPSclient.py
-Restart=always
-RestartSec=30
-
-# Optional: set environment variables if needed
-# Environment="PYTHONUNBUFFERED=1"
-
-# Optional: logging
-StandardOutput=append:/var/log/UPSclient.log
-StandardError=append:/var/log/UPSclient_error.log
-
-[Install]
-WantedBy=multi-user.target
+sudo cp UPSclient.service /etc/systemd/system/
 ```
 ### Setup log rotation
 ```bash
@@ -286,8 +196,11 @@ sudo systemctl stop UPSclient.service
 sudo systemctl restart UPSclient.service
 
 # View logs
-sudo journalctl -u UPSclient.service -f
-
-# View recent logs
-sudo journalctl -u UPSclient.service -n 50
+tail /var/log/UPSclient.log -n 50 -f
+tail /var/log/UPSclient.log -n 50
+tail /var/log/UPSclient_error.log -n 50
 ```
+
+
+sudo visudo
+dtx ALL=(ALL) NOPASSWD: /sbin/shutdown, /bin/systemctl poweroff

@@ -1,0 +1,23 @@
+[Unit]
+Description=Python UPSdashboard Service (Streamlit)
+After=network.target
+
+[Service]
+Type=simple
+# Run as root for consistency with UPSserver
+User=root
+Group=root
+WorkingDirectory=/opt/UPSserver
+ExecStart=/usr/bin/python3 -m streamlit run /opt/UPSserver/UPSdashboard.py --server.port=8501 --server.address=0.0.0.0
+Restart=always
+RestartSec=30
+
+# Optional: set environment variables if needed
+# Environment="PYTHONUNBUFFERED=1"
+
+# Optional: logging
+StandardOutput=append:/var/log/UPSdashboard.log
+StandardError=append:/var/log/UPSdashboard_error.log
+
+[Install]
+WantedBy=multi-user.target
