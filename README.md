@@ -1,4 +1,5 @@
 # Riello UPS shutdown
+pip3 install streamlit --break-system-packages
 
 ## Server 
 The server components must be deployed in the last machine to be shutdown.
@@ -32,6 +33,18 @@ StandardError=append:/var/log/UPSserver_error.log
 [Install]
 WantedBy=multi-user.target
 ```
+### Setup log rotation
+```bash
+# Copy logrotate configuration
+sudo cp UPSserver.logrotate /etc/logrotate.d/UPSserver
+
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/UPSserver
+
+# Force rotation (optional, for testing)
+sudo logrotate -f /etc/logrotate.d/UPSserver
+```
+
 ### Enable and start the service
 ```bash
 # Reload systemd to recognize the new service
@@ -90,6 +103,18 @@ StandardError=append:/var/log/UPSdashboard_error.log
 [Install]
 WantedBy=multi-user.target
 ```
+### Setup log rotation
+```bash
+# Copy logrotate configuration
+sudo cp UPSdashboard.logrotate /etc/logrotate.d/UPSdashboard
+
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/UPSdashboard
+
+# Force rotation (optional, for testing)
+sudo logrotate -f /etc/logrotate.d/UPSdashboard
+```
+
 ### Enable and start the service
 ```bash
 # Reload systemd to recognize the new service
@@ -155,6 +180,18 @@ StandardError=append:/var/log/UPSclient_error.log
 [Install]
 WantedBy=multi-user.target
 ```
+### Setup log rotation
+```bash
+# Copy logrotate configuration
+sudo cp UPSclient.logrotate /etc/logrotate.d/UPSclient
+
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/UPSclient
+
+# Force rotation (optional, for testing)
+sudo logrotate -f /etc/logrotate.d/UPSclient
+```
+
 ### Enable and start the service
 ```bash
 # Reload systemd to recognize the new service
