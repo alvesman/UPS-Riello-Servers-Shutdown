@@ -22,12 +22,12 @@ sudo chmod 644 /var/log/UPSserver.log /var/log/UPSserver_error.log
 
 The UPS server service **must run as root** because it needs to execute system shutdown commands when UPS battery is critical.
 
-### Setup log rotation
+### Log rotation check (optional)
 ```bash
 # Test logrotate configuration
 sudo logrotate -d /etc/logrotate.d/UPSserver
 
-# Force rotation (optional, for testing)
+# Force rotation
 sudo logrotate -f /etc/logrotate.d/UPSserver
 ```
 
@@ -88,7 +88,6 @@ sudo chmod 644 /var/log/UPSdashboard.log /var/log/UPSdashboard_error.log
 
 ### Setup log rotation
 ```bash
-# Copy logrotate configuration
 sudo cp UPSdashboard.logrotate /etc/logrotate.d/UPSdashboard
 ```
 
