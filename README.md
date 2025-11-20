@@ -1,8 +1,8 @@
 # Riello UPS shutdown
 # Server 
-**Server components should be deployed in the last machine to be shutdown.**
+**The server components must be deployed in the last machine to be shutdown!**
 
-### Install UPSserver as a service
+### Install the UPSserver as a service
 
 ```bash
 # Create installation directory
@@ -24,6 +24,7 @@ The UPS server service **must run as root** because it needs to execute system s
 
 ### Setup log rotation
 ```bash
+# Logrotate configuration already copied in previous step
 # Test logrotate configuration
 sudo logrotate -d /etc/logrotate.d/UPSserver
 
@@ -48,14 +49,15 @@ sudo systemctl status UPSserver.service
 
 ### Monitoring and logs
 ```bash
-# View log files
+# View log files directly
 tail -f /var/log/UPSserver.log -n 50
 tail -f /var/log/UPSserver_error.log -n 50
 ```
 
 ### Security Considerations
 
-The dashboard does not provide authentication at his moment.
+**Why the service runs as root:**
+The server must execute `shutdown -h now` when UPS battery is critical. Only root can execute these commands.
 
 ### Useful commands
 ```bash
@@ -64,6 +66,12 @@ sudo systemctl stop UPSserver.service
 
 # Restart the service
 sudo systemctl restart UPSserver.service
+
+# Check service status
+sudo systemctl status UPSserver.service
+
+# View recent logs
+sudo journalctl -u UPSserver.service -n 50
 
 # Check service status
 sudo systemctl status UPSserver.service
@@ -90,6 +98,12 @@ sudo chmod 644 /var/log/UPSdashboard.log /var/log/UPSdashboard_error.log
 ```bash
 # Copy logrotate configuration
 sudo cp UPSdashboard.logrotate /etc/logrotate.d/UPSdashboard
+
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/UPSdashboard
+
+# Force rotation (optional, for testing)
+sudo logrotate -f /etc/logrotate.d/UPSdashboard
 ```
 
 ### Enable and start the service
@@ -122,10 +136,8 @@ tail -f /var/log/UPSdashboard_error.log -n 50
 ### Access the dashboard
 Open your browser and navigate to:
 ```bash
-http://your-server-ip:8080
+http://your-server-ip:8501
 ```
-####################################################################################################
-
 # Client
 To be installed on all machines that should be shutdown when UPS battery is bellow a threshold configured in the UPSdashboard.
 
@@ -139,7 +151,14 @@ sudo cp UPSclient.service /etc/systemd/system/
 ```bash
 # Copy logrotate configuration
 sudo cp UPSclient.logrotate /etc/logrotate.d/UPSclient
+
+# Test logrotate configuration
+sudo logrotate -d /etc/logrotate.d/UPSclient
+
+# Force rotation (optional, for testing)
+sudo logrotate -f /etc/logrotate.d/UPSclient
 ```
+
 ### Enable and start the service
 ```bash
 # Reload systemd to recognize the new service
@@ -165,5 +184,10 @@ sudo systemctl restart UPSclient.service
 
 # View logs
 tail /var/log/UPSclient.log -n 50 -f
+tail /var/log/UPSclient.log -n 50
 tail /var/log/UPSclient_error.log -n 50
 ```
+
+
+sudo visudo
+dtx ALL=(ALL) NOPASSWD: /sbin/shutdown, /bin/systemctl poweroff
