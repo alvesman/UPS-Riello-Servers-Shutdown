@@ -123,7 +123,7 @@ Open your browser and navigate to:
 ```bash
 http://your-server-ip:8080
 ```
-####################################################################################################
+################################################################################
 
 # Client
 To be installed on all machines that should be shutdown when UPS battery is bellow a threshold configured in the UPSdashboard.
