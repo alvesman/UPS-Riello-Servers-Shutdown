@@ -1,13 +1,3 @@
-sudo mkdir -p /opt/UPSclient
-sudo cp UPSclient.py /opt/UPSclient/
-
-# Create log files
-sudo touch /var/log/UPSclient.log /var/log/UPSclient_error.log
-sudo chmod 644 /var/log/UPSclient.log /var/log/UPSclient_error.log
-
-sudo nano /etc/systemd/system/UPSclient.service
-```
-```bash
 [Unit]
 Description=Python UPSclient Service
 After=network.target
