@@ -7,7 +7,7 @@ This is a **distributed UPS (Uninterruptible Power Supply) monitoring and automa
 The system consists of three main components:
 
 ### 1. **UPS Server** (`UPSserver.py`)
-- Sould run on the **last machine to be shut down**, ideally the server other servers depend on, but has no dependencies on the others.
+- Should run on the **last machine to be shut down**, ideally the server other servers depend on, but has no dependencies on the others.
 - Monitors a Riello UPS device via HTTPS JSON API (`https://UPS_DASHBOARD_IP/json/live_data.json`)
 - Polls the UPS every 60 seconds to check battery autonomy (remaining minutes)
 - Manages client connections via UDP discovery (port 5225) and TCP communication (port 5226)
