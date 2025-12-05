@@ -85,6 +85,45 @@ def update_client_shutdown_time(hostname: str, seconds: int):
         print(f"Error updating shutdown time: {e}")
         return False
 
+def get_ups_status():
+    """Get current UPS status by reading from the UPS directly."""
+    try:
+        import urllib.request
+        import ssl
+        
+        # Get UPS URL from configuration
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM configuration WHERE key = 'UPS_URL'")
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return None
+        
+        ups_url = result[0]
+        
+        # Create SSL context that doesn't verify certificates
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        # Fetch UPS data
+        request = urllib.request.Request(ups_url)
+        with urllib.request.urlopen(request, context=ssl_context, timeout=5) as response:
+            data = response.read().decode('utf-8')
+            json_data = json.loads(data)
+            
+            # Extract autonomy field (total minutes)
+            if 'autonomy' in json_data:
+                total_minutes = int(json_data['autonomy'])
+                return {'total_minutes': total_minutes, 'status': 'ok'}
+        
+        return None
+    except Exception as e:
+        print(f"Error getting UPS status: {e}")
+        return None
+
 class DashboardHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the UPS dashboard."""
     
@@ -102,6 +141,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.serve_clients_data()
         elif parsed_path.path == '/api/config':
             self.serve_config_data()
+        elif parsed_path.path == '/api/ups_status':
+            self.serve_ups_status()
         else:
             self.send_error(404, "Page not found")
     
@@ -147,6 +188,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """Serve configuration data as JSON."""
         config = load_configuration()
         self.send_json_response({"config": config})
+    
+    def serve_ups_status(self):
+        """Serve UPS status data as JSON."""
+        ups_status = get_ups_status()
+        if ups_status:
+            self.send_json_response(ups_status)
+        else:
+            self.send_json_response({"status": "error", "message": "Unable to fetch UPS status"}, 500)
     
     def handle_update_shutdown(self, data):
         """Handle shutdown time update request."""
@@ -469,13 +518,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
         h3 {
             color: #e4e4e7;
         }
+        .ups-status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 700;
+            background: #10b981;
+            color: #ffffff;
+            margin-left: 15px;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+        }
+        .ups-status-badge.warning {
+            background: #f59e0b;
+        }
+        .ups-status-badge.error {
+            background: #ef4444;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🔌 UPS Server Dashboard</h1>
-            <p>Monitor and configure UPS client connections</p>
+            <p id="header-subtitle">Monitor and configure UPS client connections</p>
         </div>
         
         <div class="nav">
@@ -507,7 +573,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 </div>
                 
                 <div id="edit-shutdown-section" style="margin-top: 40px; display: none;">
-                    <h3 style="margin-bottom: 20px;">Edit Client Shutdown Times</h3>
+                    <h3 style="margin-bottom: 20px;">Edit Client Shutdown Delays</h3>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="client-select">Select Client</label>
@@ -515,7 +581,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="shutdown-seconds">Seconds to Shutdown</label>
+                            <label for="shutdown-seconds">Delay Shutdown in Seconds</label>
                             <input type="number" id="shutdown-seconds" min="0" max="3600" step="10" value="0">
                         </div>
                         <div class="form-group">
@@ -576,6 +642,47 @@ class DashboardHandler(BaseHTTPRequestHandler):
         let clientsData = [];
         let configData = [];
         let currentSection = 'clients';
+        let upsStatusData = null;
+        
+        // Convert minutes to hours and minutes format
+        function formatTime(totalMinutes) {
+            if (totalMinutes === null || totalMinutes === undefined) {
+                return 'N/A';
+            }
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            }
+            return `${minutes}m`;
+        }
+        
+        // Load UPS status
+        async function loadUPSStatus() {
+            try {
+                const response = await fetch('/api/ups_status');
+                const data = await response.json();
+                upsStatusData = data;
+                updateHeaderWithUPSStatus();
+            } catch (error) {
+                console.error('Error loading UPS status:', error);
+                upsStatusData = null;
+                updateHeaderWithUPSStatus();
+            }
+        }
+        
+        // Update header with UPS status
+        function updateHeaderWithUPSStatus() {
+            const subtitle = document.getElementById('header-subtitle');
+            if (upsStatusData && upsStatusData.status === 'ok') {
+                const timeStr = formatTime(upsStatusData.total_minutes);
+                const badgeClass = upsStatusData.total_minutes > 30 ? '' : 
+                                   upsStatusData.total_minutes > 15 ? 'warning' : 'error';
+                subtitle.innerHTML = `Monitor and configure UPS client connections <span class="ups-status-badge ${badgeClass}">⚡ Battery: ${timeStr}</span>`;
+            } else {
+                subtitle.innerHTML = 'Monitor and configure UPS client connections <span class="ups-status-badge error">⚡ Battery: Unknown</span>';
+            }
+        }
         
         // Show/hide sections
         function showSection(section) {
@@ -811,9 +918,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
         async function init() {
             await loadClients();
             await loadConfig();
+            await loadUPSStatus();
             
             // Auto-refresh every 30 seconds
             setInterval(refreshData, 30000);
+            setInterval(loadUPSStatus, 30000);
         }
         
         // Start the dashboard
