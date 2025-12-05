@@ -113,7 +113,7 @@ tail -f /var/log/UPSserver_error.log -n 50
 
 ### Security Considerations
 
-The dashboard does not provide authentication at his moment.
+The dashboard does not provide authentication at this moment.
 
 ### Useful commands
 ```bash
