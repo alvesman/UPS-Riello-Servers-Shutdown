@@ -33,7 +33,18 @@ def load_client_connections():
         columns = [description[0] for description in cursor.description]
         rows = cursor.fetchall()
         conn.close()
-        return [dict(zip(columns, row)) for row in rows]
+        clients = []
+        for row in rows:
+            client_dict = dict(zip(columns, row))
+            if client_dict.get('last_connection_time'):
+                try:
+                    dt_object = datetime.fromisoformat(client_dict['last_connection_time'])
+                    client_dict['last_connection_time'] = dt_object.strftime('%Y-%m-%d %H:%M')
+                except (ValueError, TypeError):
+                    # If parsing fails, keep the original string
+                    pass
+            clients.append(client_dict)
+        return clients
     except Exception as e:
         print(f"Error loading client connections: {e}")
         return []
