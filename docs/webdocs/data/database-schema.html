@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Schema - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="database-schema.html">Data Layer</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Database Schema</span>
+                    </nav>
+                    <h1 class="page-title">Database Schema</h1>
+                </header>
+                
+                <p>This document describes the SQLite database schema used by the Riello UPS Servers Shutdown system.</p>
+                
+                <h2>Overview</h2>
+                <table>
+                    <tbody>
+                        <tr><th>Database Engine</th><td>SQLite 3</td></tr>
+                        <tr><th>File Location</th><td><code>/opt/UPSserver/ups_clients.db</code></td></tr>
+                        <tr><th>Tables</th><td>2 (client_connections, configuration)</td></tr>
+                        <tr><th>Creation</th><td>Automatic on first server start</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>Entity-Relationship Diagram</h2>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+┌─────────────────────────────────────┐
+│         client_connections          │
+├─────────────────────────────────────┤
+│ PK hostname          TEXT NOT NULL  │
+│    ip_address        TEXT           │
+│    port              INTEGER        │
+│    last_connection_time TEXT        │
+│    seconds_to_shutdown INTEGER      │
+└─────────────────────────────────────┘
+
+┌─────────────────────────────────────┐
+│           configuration             │
+├─────────────────────────────────────┤
+│ PK key               TEXT NOT NULL  │
+│    value             TEXT           │
+└─────────────────────────────────────┘
+                </pre>
+                <div class="note note-info">
+                    <strong>Note:</strong> Tables are independent with no foreign key relationships.
+                </div>
+                
+                <h2>client_connections Table</h2>
+                <p>Stores information about connected client machines.</p>
+                
+                <h3>Schema Definition</h3>
+                <pre><code class="language-sql">CREATE TABLE IF NOT EXISTS client_connections (
+    hostname TEXT PRIMARY KEY,
+    ip_address TEXT,
+    port INTEGER,
+    last_connection_time TEXT,
+    seconds_to_shutdown INTEGER DEFAULT 0
+);</code></pre>
+                
+                <h3>Column Descriptions</h3>
+                <table>
+                    <thead>
+                        <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>hostname</code></td>
+                            <td>TEXT</td>
+                            <td>PRIMARY KEY, NOT NULL</td>
+                            <td>Unique client hostname identifier</td>
+                        </tr>
+                        <tr>
+                            <td><code>ip_address</code></td>
+                            <td>TEXT</td>
+                            <td>-</td>
+                            <td>Client's IPv4 address (e.g., "192.168.1.100")</td>
+                        </tr>
+                        <tr>
+                            <td><code>port</code></td>
+                            <td>INTEGER</td>
+                            <td>-</td>
+                            <td>TCP connection port number</td>
+                        </tr>
+                        <tr>
+                            <td><code>last_connection_time</code></td>
+                            <td>TEXT</td>
+                            <td>-</td>
+                            <td>ISO 8601 timestamp of last connection/heartbeat</td>
+                        </tr>
+                        <tr>
+                            <td><code>seconds_to_shutdown</code></td>
+                            <td>INTEGER</td>
+                            <td>DEFAULT 0</td>
+                            <td>Shutdown delay in seconds (0 = immediate)</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Example Data</h3>
+                <pre><code class="language-sql">SELECT * FROM client_connections;
+
+-- hostname         | ip_address     | port | last_connection_time    | seconds_to_shutdown
+-- -----------------+----------------+------+-------------------------+--------------------
+-- web-server-01    | 192.168.1.100  | 5226 | 2024-01-15T10:30:00     | 0
+-- db-server-01     | 192.168.1.101  | 5226 | 2024-01-15T10:29:45     | 30
+-- app-server-01    | 192.168.1.102  | 5226 | 2024-01-15T10:28:00     | 60</code></pre>
+                
+                <h2>configuration Table</h2>
+                <p>Stores system configuration key-value pairs.</p>
+                
+                <h3>Schema Definition</h3>
+                <pre><code class="language-sql">CREATE TABLE IF NOT EXISTS configuration (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);</code></pre>
+                
+                <h3>Column Descriptions</h3>
+                <table>
+                    <thead>
+                        <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>key</code></td>
+                            <td>TEXT</td>
+                            <td>PRIMARY KEY, NOT NULL</td>
+                            <td>Configuration key name</td>
+                        </tr>
+                        <tr>
+                            <td><code>value</code></td>
+                            <td>TEXT</td>
+                            <td>-</td>
+                            <td>Configuration value (stored as string)</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Standard Configuration Keys</h3>
+                <table>
+                    <thead>
+                        <tr><th>Key</th><th>Example Value</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>UPS_URL</code></td>
+                            <td><code>https://192.168.1.1/json/live_data.json</code></td>
+                            <td>Full URL to Riello UPS JSON API endpoint</td>
+                        </tr>
+                        <tr>
+                            <td><code>UPS_minimum_minutes</code></td>
+                            <td><code>15</code></td>
+                            <td>Battery threshold to trigger shutdown</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Example Data</h3>
+                <pre><code class="language-sql">SELECT * FROM configuration;
+
+-- key                  | value
+-- ---------------------+------------------------------------------
+-- UPS_URL              | https://192.168.1.1/json/live_data.json
+-- UPS_minimum_minutes  | 15</code></pre>
+                
+                <h2>Database Initialization</h2>
+                <p>The database is created automatically when the server starts:</p>
+                <pre><code class="language-python">def init_database(self):
+    """Initialize the SQLite database with required tables."""
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    # Create client_connections table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS client_connections (
+            hostname TEXT PRIMARY KEY,
+            ip_address TEXT,
+            port INTEGER,
+            last_connection_time TEXT,
+            seconds_to_shutdown INTEGER DEFAULT 0
+        )
+    ''')
+    
+    # Create configuration table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS configuration (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()</code></pre>
+                
+                <h2>Database Operations</h2>
+                
+                <h3>Insert/Update Client</h3>
+                <pre><code class="language-sql">INSERT OR REPLACE INTO client_connections 
+    (hostname, ip_address, port, last_connection_time, seconds_to_shutdown)
+VALUES 
+    ('web-server-01', '192.168.1.100', 5226, '2024-01-15T10:30:00', 0);</code></pre>
+                
+                <h3>Update Heartbeat Time</h3>
+                <pre><code class="language-sql">UPDATE client_connections 
+SET last_connection_time = '2024-01-15T10:31:00'
+WHERE hostname = 'web-server-01';</code></pre>
+                
+                <h3>Update Shutdown Delay</h3>
+                <pre><code class="language-sql">UPDATE client_connections 
+SET seconds_to_shutdown = 60
+WHERE hostname = 'web-server-01';</code></pre>
+                
+                <h3>Get All Clients</h3>
+                <pre><code class="language-sql">SELECT hostname, ip_address, port, last_connection_time, seconds_to_shutdown
+FROM client_connections
+ORDER BY hostname;</code></pre>
+                
+                <h3>Get Configuration</h3>
+                <pre><code class="language-sql">SELECT key, value FROM configuration;</code></pre>
+                
+                <h3>Update Configuration</h3>
+                <pre><code class="language-sql">INSERT OR REPLACE INTO configuration (key, value)
+VALUES ('UPS_minimum_minutes', '20');</code></pre>
+                
+                <h2>Database Maintenance</h2>
+                
+                <h3>Backup</h3>
+                <pre><code class="language-bash"># Create backup
+cp /opt/UPSserver/ups_clients.db /opt/UPSserver/ups_clients.db.backup
+
+# Backup with date
+cp /opt/UPSserver/ups_clients.db "/opt/UPSserver/ups_clients_$(date +%Y%m%d).db"</code></pre>
+                
+                <h3>Reset Database</h3>
+                <pre><code class="language-bash"># Stop services
+sudo systemctl stop UPSserver UPSdashboard
+
+# Remove database (will be recreated on restart)
+rm /opt/UPSserver/ups_clients.db
+
+# Restart services
+sudo systemctl start UPSserver UPSdashboard</code></pre>
+                
+                <h3>View Database Contents</h3>
+                <pre><code class="language-bash"># Using sqlite3 CLI
+sqlite3 /opt/UPSserver/ups_clients.db
+
+# View all tables
+.tables
+
+# View clients
+SELECT * FROM client_connections;
+
+# View config
+SELECT * FROM configuration;
+
+# Exit
+.quit</code></pre>
+                
+                <h2>Data Integrity</h2>
+                
+                <h3>Constraints</h3>
+                <ul>
+                    <li><code>hostname</code> is PRIMARY KEY - ensures unique clients</li>
+                    <li><code>key</code> is PRIMARY KEY - ensures unique config keys</li>
+                    <li><code>seconds_to_shutdown</code> defaults to 0 if not specified</li>
+                </ul>
+                
+                <h3>Concurrency</h3>
+                <p>SQLite handles concurrency automatically. The application uses:</p>
+                <ul>
+                    <li>Short-lived connections (open, execute, close)</li>
+                    <li>No explicit transaction management</li>
+                    <li>Default SQLite locking behavior</li>
+                </ul>
+                
+                <nav class="page-nav">
+                    <a href="../services/service-reference.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Service Reference</span>
+                    </a>
+                    <a href="data-access.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Data Access →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

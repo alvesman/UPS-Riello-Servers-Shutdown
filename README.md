@@ -1,4 +1,4 @@
-# [Riello UPS](https://www.riello-ups.com/) Servers Shutdown
+# [Riello UPS](https://www.riello-ups.com/) Servers Shutdown quick README
 
 This is a **distributed UPS (Uninterruptible Power Supply) monitoring and automated shutdown system** designed for Riello UPS units. It protects multiple servers/machines by gracefully shutting them down when the UPS battery reaches critical (configurable) levels.
 
@@ -223,3 +223,7 @@ sudo systemctl restart UPSclient.service
 tail /var/log/UPSclient.log -n 50 -f
 tail /var/log/UPSclient_error.log -n 50
 ```
+
+### More details about the system in the [System details README](docs/README.md)
+
+---

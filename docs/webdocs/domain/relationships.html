@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relationships - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="entities.html">Domain Model</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Relationships</span>
+                    </nav>
+                    <h1 class="page-title">Entity Relationships</h1>
+                </header>
+                
+                <p>This document describes how the domain entities in the Riello UPS Servers Shutdown system relate to each other.</p>
+                
+                <h2>Component Relationship Diagram</h2>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              UPS Server                                      │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────┐  │
+│  │  ReadUPSMinutes │    │   UPSServer     │    │   Database (SQLite)     │  │
+│  │                 │───▶│                 │◀──▶│   ┌─────────────────┐   │  │
+│  │  - url          │    │  - clients      │    │   │client_connections│   │  │
+│  │  - get_minutes()│    │  - running      │    │   │configuration    │   │  │
+│  └─────────────────┘    │  - db_path      │    │   └─────────────────┘   │  │
+│                         └────────┬────────┘    └─────────────────────────┘  │
+└──────────────────────────────────┼──────────────────────────────────────────┘
+                                   │ 1:N
+                                   ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         Client Connections (N)                                │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐            │
+│  │ ClientConnection │  │ ClientConnection │  │ ClientConnection │   ...      │
+│  │   hostname_1     │  │   hostname_2     │  │   hostname_N     │            │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘            │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                   ▲
+                                   │ 1:1
+                                   ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                            UPS Clients (N)                                    │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐            │
+│  │    UPSClient     │  │    UPSClient     │  │    UPSClient     │   ...      │
+│  │    Machine 1     │  │    Machine 2     │  │    Machine N     │            │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘            │
+└──────────────────────────────────────────────────────────────────────────────┘
+                </pre>
+                
+                <h2>Relationship Types</h2>
+                
+                <h3>1. UPSServer ↔ ClientConnection (1:N)</h3>
+                <p>The server maintains multiple client connections simultaneously.</p>
+                <pre><code class="language-python"># In UPSServer class
+self.clients: Dict[str, ClientConnection] = {}
+
+# Adding a client
+self.clients[hostname] = ClientConnection(hostname, ip_address, port, socket)
+
+# Accessing all clients
+for hostname, client in self.clients.items():
+    # Process each client</code></pre>
+                
+                <h3>2. UPSServer ↔ ReadUPSMinutes (1:1)</h3>
+                <p>The server uses a single UPS reader instance to poll battery status.</p>
+                <pre><code class="language-python"># In monitor_ups method
+ups_reader = ReadUPSMinutes(ups_url)
+minutes = ups_reader.get_minutes()
+
+if minutes is not None and minutes <= threshold:
+    self.broadcast_shutdown()</code></pre>
+                
+                <h3>3. UPSServer ↔ Database (1:1)</h3>
+                <p>The server connects to a single SQLite database for persistence.</p>
+                <pre><code class="language-python"># Database path
+self.db_path = os.path.join(os.path.dirname(__file__), 'ups_clients.db')
+
+# Reading from database
+conn = sqlite3.connect(self.db_path)
+cursor = conn.execute("SELECT * FROM client_connections")
+
+# Writing to database
+conn.execute("INSERT OR REPLACE INTO client_connections VALUES (?, ?, ?, ?, ?)",
+             (hostname, ip_address, port, timestamp, seconds_to_shutdown))</code></pre>
+                
+                <h3>4. ClientConnection ↔ UPSClient (1:1)</h3>
+                <p>Each running UPSClient process corresponds to one ClientConnection on the server.</p>
+                <pre><code class="language-python"># Client side - sends identification
+message = {
+    "type": "connect",
+    "hostname": socket.gethostname()
+}
+self.socket.send(json.dumps(message).encode())
+
+# Server side - creates ClientConnection
+client_conn = ClientConnection(
+    hostname=data["hostname"],
+    ip_address=client_address[0],
+    port=client_address[1],
+    connection=client_socket
+)</code></pre>
+                
+                <h3>5. DashboardHandler ↔ Database (N:1)</h3>
+                <p>Each HTTP request creates a new database connection.</p>
+                <pre><code class="language-python"># In DashboardHandler
+def handle_api_clients(self):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.execute("SELECT * FROM client_connections")
+    clients = cursor.fetchall()
+    conn.close()
+    return clients</code></pre>
+                
+                <h2>Communication Flow</h2>
+                
+                <h3>Discovery Flow</h3>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+UPSClient                          UPSServer
+    │                                  │
+    │   UDP Broadcast "UPS_DISCOVER"   │
+    │─────────────────────────────────▶│
+    │                                  │
+    │   UDP Response "UPS_SERVER"      │
+    │◀─────────────────────────────────│
+    │                                  │
+    │   TCP Connection Request         │
+    │─────────────────────────────────▶│
+    │                                  │
+    │   TCP Accept                     │
+    │◀─────────────────────────────────│
+    │                                  │
+    │   {"type": "connect", ...}       │
+    │─────────────────────────────────▶│
+    │                                  │
+                </pre>
+                
+                <h3>Monitoring Flow</h3>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+Riello UPS         UPSServer                    UPSClient
+    │                  │                            │
+    │  GET /json/...   │                            │
+    │◀─────────────────│                            │
+    │                  │                            │
+    │  JSON Response   │                            │
+    │─────────────────▶│                            │
+    │                  │                            │
+    │                  │   {"type": "ups_status"}   │
+    │                  │───────────────────────────▶│
+    │                  │                            │
+                </pre>
+                
+                <h3>Shutdown Flow</h3>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+UPSServer                          UPSClient
+    │                                  │
+    │   {"type": "shutdown",           │
+    │    "delay": 30}                  │
+    │─────────────────────────────────▶│
+    │                                  │
+    │                                  │──┐
+    │                                  │  │ Wait delay seconds
+    │                                  │◀─┘
+    │                                  │
+    │                                  │──┐
+    │                                  │  │ Execute shutdown
+    │                                  │  │ subprocess.run()
+    │                                  │◀─┘
+    │                                  │
+                </pre>
+                
+                <h2>Database Relationships</h2>
+                
+                <h3>Entity-Relationship Diagram</h3>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+┌─────────────────────────┐
+│   client_connections    │
+├─────────────────────────┤
+│ PK hostname             │
+│    ip_address           │
+│    port                 │
+│    last_connection_time │
+│    seconds_to_shutdown  │
+└─────────────────────────┘
+         │
+         │ (No foreign key,
+         │  independent tables)
+         │
+┌─────────────────────────┐
+│     configuration       │
+├─────────────────────────┤
+│ PK key                  │
+│    value                │
+└─────────────────────────┘
+                </pre>
+                
+                <div class="note note-info">
+                    <strong>Note:</strong> The tables are independent with no foreign key relationships. They are linked logically through the server application.
+                </div>
+                
+                <h2>Thread Relationships</h2>
+                <p>The UPSServer manages multiple concurrent threads:</p>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+Main Thread (UPSServer)
+    │
+    ├──▶ UDP Listener Thread (discovery)
+    │
+    ├──▶ TCP Server Thread (connections)
+    │       │
+    │       ├──▶ Client Handler Thread (client 1)
+    │       ├──▶ Client Handler Thread (client 2)
+    │       └──▶ Client Handler Thread (client N)
+    │
+    ├──▶ Client Monitor Thread (heartbeats)
+    │
+    └──▶ UPS Monitor Thread (battery polling)
+                </pre>
+                
+                <h2>Lock Dependencies</h2>
+                <p>Thread safety is ensured through the <code>clients_lock</code> mutex:</p>
+                <pre><code class="language-python"># Any thread accessing the clients dictionary must acquire the lock
+with self.clients_lock:
+    # Safe to read/write self.clients
+    for client in self.clients.values():
+        client.connection.send(message)</code></pre>
+                
+                <nav class="page-nav">
+                    <a href="entities.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Entities</span>
+                    </a>
+                    <a href="business-rules.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Business Rules →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

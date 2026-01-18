@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Reference - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="service-reference.html">Services</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Service Reference</span>
+                    </nav>
+                    <h1 class="page-title">Service Reference</h1>
+                </header>
+                
+                <p>This document provides detailed reference information for all systemd services in the Riello UPS Servers Shutdown system.</p>
+                
+                <h2>Service Overview</h2>
+                <table>
+                    <thead>
+                        <tr><th>Service</th><th>Purpose</th><th>Deploy On</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>UPSserver.service</td><td>Core UPS monitoring and client coordination</td><td>Main server (shuts down last)</td></tr>
+                        <tr><td>UPSdashboard.service</td><td>Web management interface</td><td>Same machine as UPSserver</td></tr>
+                        <tr><td>UPSclient.service</td><td>Client shutdown agent</td><td>All other machines</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>UPSserver.service</h2>
+                <p><strong>Location:</strong> <code>/etc/systemd/system/UPSserver.service</code></p>
+                <p><strong>Source:</strong> <code>server/UPSserver.service</code></p>
+                
+                <h3>Service File</h3>
+                <pre><code class="language-ini">[Unit]
+Description=UPS Server for graceful shutdown coordination
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/UPSserver
+ExecStart=/usr/bin/python3 /opt/UPSserver/UPSserver.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/UPSserver.log
+StandardError=append:/var/log/UPSserver_error.log
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+                
+                <h3>Configuration Details</h3>
+                <table>
+                    <thead>
+                        <tr><th>Directive</th><th>Value</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>After</td><td>network.target</td><td>Starts after network is available</td></tr>
+                        <tr><td>Type</td><td>simple</td><td>Main process is the service</td></tr>
+                        <tr><td>User/Group</td><td>root</td><td>Required for shutdown command</td></tr>
+                        <tr><td>WorkingDirectory</td><td>/opt/UPSserver</td><td>Database created here</td></tr>
+                        <tr><td>Restart</td><td>always</td><td>Restart on any exit</td></tr>
+                        <tr><td>RestartSec</td><td>5</td><td>Wait 5s before restart</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Management Commands</h3>
+                <pre><code class="language-bash"># Start the service
+sudo systemctl start UPSserver
+
+# Stop the service
+sudo systemctl stop UPSserver
+
+# Restart the service
+sudo systemctl restart UPSserver
+
+# Check status
+sudo systemctl status UPSserver
+
+# Enable auto-start on boot
+sudo systemctl enable UPSserver
+
+# View logs
+sudo journalctl -u UPSserver -f
+sudo tail -f /var/log/UPSserver.log</code></pre>
+                
+                <h2>UPSdashboard.service</h2>
+                <p><strong>Location:</strong> <code>/etc/systemd/system/UPSdashboard.service</code></p>
+                <p><strong>Source:</strong> <code>server/UPSdashboard.service</code></p>
+                
+                <h3>Service File</h3>
+                <pre><code class="language-ini">[Unit]
+Description=UPS Dashboard Web Interface
+After=network.target UPSserver.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/UPSserver
+ExecStart=/usr/bin/python3 /opt/UPSserver/UPSdashboard.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/UPSdashboard.log
+StandardError=append:/var/log/UPSdashboard_error.log
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+                
+                <h3>Configuration Details</h3>
+                <table>
+                    <thead>
+                        <tr><th>Directive</th><th>Value</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>After</td><td>UPSserver.service</td><td>Starts after UPS server</td></tr>
+                        <tr><td>WorkingDirectory</td><td>/opt/UPSserver</td><td>Same as server (shared database)</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Command-Line Arguments</h3>
+                <p>The dashboard accepts an optional port argument:</p>
+                <pre><code class="language-bash"># Default port (8080)
+ExecStart=/usr/bin/python3 /opt/UPSserver/UPSdashboard.py
+
+# Custom port
+ExecStart=/usr/bin/python3 /opt/UPSserver/UPSdashboard.py 9090</code></pre>
+                
+                <h2>UPSclient.service</h2>
+                <p><strong>Location:</strong> <code>/etc/systemd/system/UPSclient.service</code></p>
+                <p><strong>Source:</strong> <code>client/UPSclient.service</code></p>
+                
+                <h3>Service File</h3>
+                <pre><code class="language-ini">[Unit]
+Description=UPS Client for graceful shutdown
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/UPSclient
+ExecStart=/usr/bin/python3 /opt/UPSclient/UPSclient.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/UPSclient.log
+StandardError=append:/var/log/UPSclient_error.log
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+                
+                <h3>Management Commands</h3>
+                <pre><code class="language-bash"># Start the client
+sudo systemctl start UPSclient
+
+# Check if client is connected
+sudo systemctl status UPSclient
+
+# View connection attempts
+sudo tail -f /var/log/UPSclient.log</code></pre>
+                
+                <h2>Log Rotation</h2>
+                <p>Each service has an associated logrotate configuration.</p>
+                
+                <h3>UPSserver.logrotate</h3>
+                <pre><code class="language-bash">/var/log/UPSserver.log /var/log/UPSserver_error.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 root root
+    size 10M
+    postrotate
+        systemctl reload UPSserver > /dev/null 2>&1 || true
+    endscript
+}</code></pre>
+                
+                <h3>Installation</h3>
+                <pre><code class="language-bash"># Copy logrotate configs
+sudo cp server/UPSserver.logrotate /etc/logrotate.d/UPSserver
+sudo cp server/UPSdashboard.logrotate /etc/logrotate.d/UPSdashboard
+sudo cp client/UPSclient.logrotate /etc/logrotate.d/UPSclient
+
+# Test configuration
+sudo logrotate -d /etc/logrotate.d/UPSserver</code></pre>
+                
+                <h3>Rotation Settings</h3>
+                <table>
+                    <thead>
+                        <tr><th>Setting</th><th>Value</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>daily</td><td>-</td><td>Rotate daily</td></tr>
+                        <tr><td>rotate</td><td>7</td><td>Keep 7 rotated files</td></tr>
+                        <tr><td>compress</td><td>-</td><td>Compress rotated logs with gzip</td></tr>
+                        <tr><td>size</td><td>10M</td><td>Also rotate if size exceeds 10MB</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>Installation Script</h2>
+                <p>Complete installation commands for server:</p>
+                <pre><code class="language-bash">#!/bin/bash
+# Server installation script
+
+# Create directories
+sudo mkdir -p /opt/UPSserver
+
+# Copy files
+sudo cp server/UPSserver.py /opt/UPSserver/
+sudo cp server/UPSdashboard.py /opt/UPSserver/
+
+# Install systemd services
+sudo cp server/UPSserver.service /etc/systemd/system/
+sudo cp server/UPSdashboard.service /etc/systemd/system/
+
+# Install logrotate configs
+sudo cp server/UPSserver.logrotate /etc/logrotate.d/UPSserver
+sudo cp server/UPSdashboard.logrotate /etc/logrotate.d/UPSdashboard
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable and start services
+sudo systemctl enable UPSserver UPSdashboard
+sudo systemctl start UPSserver UPSdashboard
+
+# Verify status
+sudo systemctl status UPSserver UPSdashboard</code></pre>
+                
+                <p>Complete installation commands for client:</p>
+                <pre><code class="language-bash">#!/bin/bash
+# Client installation script
+
+# Create directory
+sudo mkdir -p /opt/UPSclient
+
+# Copy files
+sudo cp client/UPSclient.py /opt/UPSclient/
+
+# Install systemd service
+sudo cp client/UPSclient.service /etc/systemd/system/
+
+# Install logrotate config
+sudo cp client/UPSclient.logrotate /etc/logrotate.d/UPSclient
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable and start service
+sudo systemctl enable UPSclient
+sudo systemctl start UPSclient
+
+# Verify status
+sudo systemctl status UPSclient</code></pre>
+                
+                <h2>Service Dependencies</h2>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+                    network.target
+                         │
+                         ▼
+                  ┌──────────────┐
+                  │  UPSserver   │
+                  │   :5225/udp  │
+                  │   :5226/tcp  │
+                  └──────┬───────┘
+                         │
+            ┌────────────┴────────────┐
+            ▼                         ▼
+     ┌─────────────┐          ┌─────────────┐
+     │UPSdashboard │          │  UPSclient  │
+     │   :8080     │          │  (remote)   │
+     └─────────────┘          └─────────────┘
+                </pre>
+                
+                <h2>Troubleshooting</h2>
+                
+                <h3>Service Won't Start</h3>
+                <pre><code class="language-bash"># Check for errors
+sudo journalctl -u UPSserver -n 50 --no-pager
+
+# Check file permissions
+ls -la /opt/UPSserver/
+ls -la /var/log/UPSserver.log
+
+# Check port availability
+sudo ss -tlnp | grep 5226</code></pre>
+                
+                <h3>Service Keeps Restarting</h3>
+                <pre><code class="language-bash"># Check error log
+sudo tail -100 /var/log/UPSserver_error.log
+
+# Check Python version
+python3 --version
+
+# Test script manually
+sudo python3 /opt/UPSserver/UPSserver.py</code></pre>
+                
+                <nav class="page-nav">
+                    <a href="../api/error-handling.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Error Handling</span>
+                    </a>
+                    <a href="../data/database-schema.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Database Schema →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-ini.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

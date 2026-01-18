@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="endpoints.html">API Reference</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Authentication</span>
+                    </nav>
+                    <h1 class="page-title">Authentication</h1>
+                </header>
+                
+                <p>This document describes the authentication mechanisms (or lack thereof) in the Riello UPS Servers Shutdown system.</p>
+                
+                <h2>Current Implementation</h2>
+                
+                <div class="note note-warning">
+                    <strong>⚠️ Important:</strong> The system has <strong>no built-in authentication</strong>. It is designed for trusted local network environments.
+                </div>
+                
+                <h3>Dashboard API</h3>
+                <ul>
+                    <li><strong>Authentication:</strong> None</li>
+                    <li><strong>Authorization:</strong> None</li>
+                    <li><strong>Access Control:</strong> Network-level only</li>
+                </ul>
+                <p>All API endpoints are open and accessible to anyone who can reach the server on port 8080.</p>
+                
+                <h3>Server-Client Protocol</h3>
+                <ul>
+                    <li><strong>Authentication:</strong> None (hostname-based identification only)</li>
+                    <li><strong>Encryption:</strong> None (plain TCP)</li>
+                    <li><strong>Validation:</strong> Hostname accepted without verification</li>
+                </ul>
+                <pre><code class="language-python"># Client identification - no authentication
+message = {
+    "type": "connect",
+    "hostname": socket.gethostname()  # Trusted implicitly
+}
+self.socket.send(json.dumps(message).encode())</code></pre>
+                
+                <h3>UPS API Connection</h3>
+                <ul>
+                    <li><strong>Protocol:</strong> HTTPS</li>
+                    <li><strong>Certificate Validation:</strong> <strong>Disabled</strong> (for self-signed certificates)</li>
+                </ul>
+                <pre><code class="language-python"># SSL verification disabled
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE  # Accepts any certificate</code></pre>
+                
+                <h2>Security Model</h2>
+                <p>The system operates on a <strong>trusted network model</strong>:</p>
+                <pre style="background: var(--code-bg); padding: 1.5rem; border-radius: 8px; overflow-x: auto;">
+┌────────────────────────────────────────────────────────────────┐
+│                    Trusted Network Boundary                     │
+│                                                                 │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
+│  │   Client    │    │   Server    │    │  Dashboard  │         │
+│  │   Machine   │───▶│    :5226    │◀───│    :8080    │◀──┐     │
+│  └─────────────┘    └─────────────┘    └─────────────┘   │     │
+│                                                           │     │
+│                                          ┌────────────────┘     │
+│                                          │                      │
+│                                     Trusted Admin               │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+                </pre>
+                
+                <h2>Network-Level Security Recommendations</h2>
+                <p>Since the application lacks built-in authentication, security must be implemented at the network level:</p>
+                
+                <h3>1. Firewall Configuration</h3>
+                <pre><code class="language-bash"># Allow only internal network access to dashboard
+iptables -A INPUT -p tcp --dport 8080 -s 192.168.1.0/24 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8080 -j DROP
+
+# Allow only internal network for server connections
+iptables -A INPUT -p tcp --dport 5226 -s 192.168.1.0/24 -j ACCEPT
+iptables -A INPUT -p tcp --dport 5226 -j DROP
+
+# Allow UDP discovery only internally
+iptables -A INPUT -p udp --dport 5225 -s 192.168.1.0/24 -j ACCEPT
+iptables -A INPUT -p udp --dport 5225 -j DROP</code></pre>
+                
+                <h3>2. Network Segmentation</h3>
+                <ul>
+                    <li>Deploy server and clients on isolated management VLAN</li>
+                    <li>Restrict dashboard access to administrator workstations only</li>
+                    <li>Use network ACLs to limit client-server communication</li>
+                </ul>
+                
+                <h3>3. Reverse Proxy (Optional)</h3>
+                <p>Add authentication via reverse proxy for dashboard access:</p>
+                <pre><code class="language-nginx"># nginx configuration with basic auth
+server {
+    listen 443 ssl;
+    server_name ups-dashboard.internal;
+    
+    ssl_certificate /etc/ssl/certs/ups.crt;
+    ssl_certificate_key /etc/ssl/private/ups.key;
+    
+    auth_basic "UPS Dashboard";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}</code></pre>
+                
+                <h2>Permission Requirements</h2>
+                
+                <h3>System Permissions</h3>
+                <p>All components require root/administrator privileges:</p>
+                <table>
+                    <thead>
+                        <tr><th>Component</th><th>Required Permission</th><th>Reason</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>UPSserver.py</td><td>root</td><td>Execute <code>shutdown</code> command</td></tr>
+                        <tr><td>UPSdashboard.py</td><td>root</td><td>Access database in /opt directory</td></tr>
+                        <tr><td>UPSclient.py</td><td>root</td><td>Execute <code>shutdown</code> command</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Systemd Service Permissions</h3>
+                <p>The systemd service files specify root execution:</p>
+                <pre><code class="language-ini">[Service]
+User=root
+Group=root</code></pre>
+                
+                <h2>Trust Assumptions</h2>
+                <p>The system assumes:</p>
+                <ol>
+                    <li><strong>Network Trust:</strong> All devices on the network are authorized</li>
+                    <li><strong>Hostname Trust:</strong> Clients accurately report their hostname</li>
+                    <li><strong>UPS Trust:</strong> The UPS JSON API returns accurate data</li>
+                    <li><strong>Physical Security:</strong> Server hardware is physically secure</li>
+                </ol>
+                
+                <h2>Security Considerations</h2>
+                
+                <h3>Potential Risks</h3>
+                <table>
+                    <thead>
+                        <tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Unauthorized dashboard access</td>
+                            <td>Configuration changes, forced shutdown</td>
+                            <td>Firewall rules, reverse proxy auth</td>
+                        </tr>
+                        <tr>
+                            <td>Rogue client connection</td>
+                            <td>False client in dashboard, resource consumption</td>
+                            <td>Network segmentation</td>
+                        </tr>
+                        <tr>
+                            <td>Man-in-the-middle on client connection</td>
+                            <td>Unauthorized shutdown commands</td>
+                            <td>VPN or network isolation</td>
+                        </tr>
+                        <tr>
+                            <td>UPS API spoofing</td>
+                            <td>False battery readings, unnecessary shutdown</td>
+                            <td>Network isolation, certificate pinning (not implemented)</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>Best Practices for Deployment</h3>
+                <ol>
+                    <li>Deploy on isolated management network</li>
+                    <li>Use firewall rules to restrict access</li>
+                    <li>Consider VPN for remote administration</li>
+                    <li>Monitor logs for unauthorized access attempts</li>
+                    <li>Regularly audit connected clients list</li>
+                </ol>
+                
+                <nav class="page-nav">
+                    <a href="endpoints.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Endpoints</span>
+                    </a>
+                    <a href="error-handling.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Error Handling →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nginx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-ini.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

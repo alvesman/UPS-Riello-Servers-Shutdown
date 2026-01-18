@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Use Cases - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="getting-started.html">Guides</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Use Cases</span>
+                    </nav>
+                    <h1 class="page-title">Use Cases</h1>
+                </header>
+                
+                <p>This document provides detailed use cases with code examples for common scenarios in the Riello UPS Servers Shutdown system.</p>
+                
+                <h2>Use Case 1: Basic Server Deployment</h2>
+                <p><strong>Scenario:</strong> Deploy the UPS server on a Linux machine that should shut down last during power outages.</p>
+                
+                <h3>Implementation</h3>
+                <pre><code class="language-bash">#!/bin/bash
+# deploy_server.sh - Complete server deployment script
+
+set -e  # Exit on error
+
+echo "Creating directories..."
+sudo mkdir -p /opt/UPSserver
+
+echo "Copying files..."
+sudo cp UPSserver.py /opt/UPSserver/
+sudo cp UPSdashboard.py /opt/UPSserver/
+
+echo "Installing systemd services..."
+sudo cp UPSserver.service /etc/systemd/system/
+sudo cp UPSdashboard.service /etc/systemd/system/
+
+echo "Setting up log rotation..."
+sudo cp UPSserver.logrotate /etc/logrotate.d/UPSserver
+sudo cp UPSdashboard.logrotate /etc/logrotate.d/UPSdashboard
+
+echo "Starting services..."
+sudo systemctl daemon-reload
+sudo systemctl enable UPSserver UPSdashboard
+sudo systemctl start UPSserver UPSdashboard
+
+echo "Deployment complete!"
+echo "Configure via dashboard: http://$(hostname -I | awk '{print $1}'):8080"</code></pre>
+                
+                <h3>Verification</h3>
+                <pre><code class="language-bash"># Verify server is running
+systemctl status UPSserver
+
+# Check logs for startup
+tail -20 /var/log/UPSserver.log</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 2: Multi-Client Deployment</h2>
+                <p><strong>Scenario:</strong> Deploy the UPS client to multiple machines using a script.</p>
+                
+                <h3>Implementation</h3>
+                <pre><code class="language-bash">#!/bin/bash
+# deploy_client.sh - Deploy client to remote machines
+
+MACHINES="web-01 web-02 db-01 app-01"
+SOURCE_DIR="/path/to/client"
+
+for machine in $MACHINES; do
+    echo "Deploying to $machine..."
+    
+    # Create directory
+    ssh root@$machine "mkdir -p /opt/UPSclient"
+    
+    # Copy files
+    scp $SOURCE_DIR/UPSclient.py root@$machine:/opt/UPSclient/
+    scp $SOURCE_DIR/UPSclient.service root@$machine:/etc/systemd/system/
+    scp $SOURCE_DIR/UPSclient.logrotate root@$machine:/etc/logrotate.d/UPSclient
+    
+    # Start service
+    ssh root@$machine "systemctl daemon-reload && systemctl enable UPSclient && systemctl start UPSclient"
+    
+    echo "$machine: Done"
+done
+
+echo "All deployments complete!"</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 3: Configure Staggered Shutdown</h2>
+                <p><strong>Scenario:</strong> Configure a three-tier application with proper shutdown order:</p>
+                <ul>
+                    <li>Web servers shut down first (0 seconds)</li>
+                    <li>Application servers shut down after 30 seconds</li>
+                    <li>Database server shuts down after 60 seconds</li>
+                </ul>
+                
+                <h3>Implementation via Dashboard</h3>
+                <ol>
+                    <li>Open <code>http://server-ip:8080</code></li>
+                    <li>Set shutdown delays for each client</li>
+                </ol>
+                
+                <h3>Implementation via API</h3>
+                <pre><code class="language-bash">#!/bin/bash
+# configure_shutdown_delays.sh
+
+SERVER="http://192.168.1.10:8080"
+
+# Configure web servers (immediate shutdown)
+curl -X POST "$SERVER/api/update_shutdown" \
+    -d "hostname=web-server-01&seconds=0"
+curl -X POST "$SERVER/api/update_shutdown" \
+    -d "hostname=web-server-02&seconds=0"
+
+# Configure app server (30 second delay)
+curl -X POST "$SERVER/api/update_shutdown" \
+    -d "hostname=app-server-01&seconds=30"
+
+# Configure database server (60 second delay)
+curl -X POST "$SERVER/api/update_shutdown" \
+    -d "hostname=db-server-01&seconds=60"
+
+echo "Shutdown delays configured!"</code></pre>
+                
+                <h3>Verification</h3>
+                <pre><code class="language-bash"># Verify configuration
+curl http://192.168.1.10:8080/api/clients | python3 -m json.tool</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 4: Monitor UPS Status via API</h2>
+                <p><strong>Scenario:</strong> Create a monitoring script that checks UPS status and sends alerts.</p>
+                
+                <h3>Implementation</h3>
+                <pre><code class="language-python">#!/usr/bin/env python3
+"""UPS monitoring script with email alerts."""
+
+import urllib.request
+import json
+import smtplib
+from email.mime.text import MIMEText
+
+DASHBOARD_URL = "http://192.168.1.10:8080"
+ALERT_EMAIL = "admin@example.com"
+SMTP_SERVER = "smtp.example.com"
+WARNING_THRESHOLD = 30  # minutes
+
+def get_ups_status():
+    """Fetch current UPS status from dashboard API."""
+    url = f"{DASHBOARD_URL}/api/ups_status"
+    with urllib.request.urlopen(url, timeout=10) as response:
+        return json.loads(response.read().decode())
+
+def send_alert(subject: str, message: str):
+    """Send email alert."""
+    msg = MIMEText(message)
+    msg['Subject'] = subject
+    msg['From'] = 'ups-monitor@example.com'
+    msg['To'] = ALERT_EMAIL
+    
+    with smtplib.SMTP(SMTP_SERVER) as server:
+        server.send_message(msg)
+
+def main():
+    status = get_ups_status()
+    minutes = status.get('minutes')
+    
+    if minutes is None:
+        send_alert(
+            "UPS Alert: Status Unknown",
+            "Cannot retrieve UPS battery status. Check server logs."
+        )
+    elif minutes <= WARNING_THRESHOLD:
+        send_alert(
+            f"UPS Alert: Low Battery ({minutes} minutes)",
+            f"UPS battery is low: {minutes} minutes remaining.\n"
+            f"Threshold for shutdown: {status.get('threshold')} minutes.\n"
+            f"Status: {status.get('status')}"
+        )
+        print(f"Alert sent: {minutes} minutes remaining")
+    else:
+        print(f"UPS OK: {minutes} minutes remaining")
+
+if __name__ == "__main__":
+    main()</code></pre>
+                
+                <h3>Cron Setup</h3>
+                <pre><code class="language-bash"># Run every 5 minutes
+*/5 * * * * /opt/scripts/ups_monitor.py >> /var/log/ups_monitor.log 2>&1</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 5: Dashboard Behind Reverse Proxy</h2>
+                <p><strong>Scenario:</strong> Secure dashboard access with HTTPS and basic authentication using nginx.</p>
+                
+                <h3>Nginx Configuration</h3>
+                <pre><code class="language-nginx"># /etc/nginx/sites-available/ups-dashboard
+server {
+    listen 443 ssl;
+    server_name ups.example.com;
+    
+    ssl_certificate /etc/ssl/certs/ups.crt;
+    ssl_certificate_key /etc/ssl/private/ups.key;
+    
+    # Basic authentication
+    auth_basic "UPS Dashboard";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    server_name ups.example.com;
+    return 301 https://$server_name$request_uri;
+}</code></pre>
+                
+                <h3>Create Password File</h3>
+                <pre><code class="language-bash"># Install apache2-utils for htpasswd
+sudo apt-get install apache2-utils
+
+# Create password file
+sudo htpasswd -c /etc/nginx/.htpasswd admin
+
+# Enable site
+sudo ln -s /etc/nginx/sites-available/ups-dashboard /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 6: Custom Shutdown Scripts</h2>
+                <p><strong>Scenario:</strong> Execute custom cleanup scripts before shutdown on a client machine.</p>
+                
+                <h3>Modified Client</h3>
+                <pre><code class="language-python"># Modified execute_shutdown method in UPSclient.py
+
+def execute_shutdown(self, delay: int):
+    """Execute pre-shutdown scripts and then shutdown."""
+    logging.info(f"Shutdown in {delay} seconds")
+    time.sleep(delay)
+    
+    # Run custom pre-shutdown scripts
+    pre_shutdown_scripts = [
+        '/opt/scripts/stop_services.sh',
+        '/opt/scripts/backup_database.sh',
+        '/opt/scripts/notify_team.sh'
+    ]
+    
+    for script in pre_shutdown_scripts:
+        if os.path.exists(script):
+            logging.info(f"Running pre-shutdown script: {script}")
+            try:
+                subprocess.run([script], timeout=60, check=True)
+            except subprocess.TimeoutExpired:
+                logging.warning(f"Script timed out: {script}")
+            except subprocess.CalledProcessError as e:
+                logging.error(f"Script failed: {script} - {e}")
+    
+    # Execute system shutdown
+    logging.info("Executing system shutdown")
+    system = platform.system().lower()
+    if system == 'windows':
+        subprocess.run(['shutdown', '/s', '/t', '0', '/f'], check=True)
+    else:
+        subprocess.run(['shutdown', '-h', 'now'], check=True)</code></pre>
+                
+                <h3>Pre-Shutdown Script Example</h3>
+                <pre><code class="language-bash">#!/bin/bash
+# /opt/scripts/stop_services.sh
+
+# Stop application services gracefully
+systemctl stop myapp
+systemctl stop nginx
+systemctl stop postgresql
+
+# Wait for services to stop
+sleep 5
+
+echo "Services stopped successfully"</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 7: Health Check Endpoint</h2>
+                <p><strong>Scenario:</strong> Create a health check script for monitoring systems.</p>
+                
+                <h3>Implementation</h3>
+                <pre><code class="language-python">#!/usr/bin/env python3
+"""Health check script for load balancers/monitoring."""
+
+import urllib.request
+import json
+import sys
+
+DASHBOARD_URL = "http://localhost:8080"
+
+def health_check():
+    """Check system health and return appropriate exit code."""
+    try:
+        # Check dashboard is responding
+        url = f"{DASHBOARD_URL}/api/ups_status"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.loads(response.read().decode())
+        
+        # Check UPS status
+        status = data.get('status', 'unknown')
+        minutes = data.get('minutes')
+        
+        if status == 'critical':
+            print(f"CRITICAL: UPS battery critical ({minutes} minutes)")
+            return 2
+        elif status == 'warning':
+            print(f"WARNING: UPS battery low ({minutes} minutes)")
+            return 1
+        elif status == 'ok':
+            print(f"OK: UPS battery good ({minutes} minutes)")
+            return 0
+        else:
+            print(f"UNKNOWN: Cannot determine UPS status")
+            return 3
+            
+    except Exception as e:
+        print(f"CRITICAL: Cannot reach dashboard - {e}")
+        return 2
+
+if __name__ == "__main__":
+    sys.exit(health_check())</code></pre>
+                
+                <h3>Nagios Integration</h3>
+                <pre><code class="language-bash"># /etc/nagios/nrpe.cfg
+command[check_ups]=/opt/scripts/ups_health_check.py</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 8: Client Status Report</h2>
+                <p><strong>Scenario:</strong> Generate a daily report of connected clients and UPS status.</p>
+                
+                <h3>Implementation</h3>
+                <pre><code class="language-python">#!/usr/bin/env python3
+"""Generate daily UPS client status report."""
+
+import urllib.request
+import json
+from datetime import datetime
+
+DASHBOARD_URL = "http://192.168.1.10:8080"
+
+def generate_report():
+    """Generate status report."""
+    # Fetch data
+    with urllib.request.urlopen(f"{DASHBOARD_URL}/api/clients") as r:
+        clients_data = json.loads(r.read().decode())
+    
+    with urllib.request.urlopen(f"{DASHBOARD_URL}/api/ups_status") as r:
+        ups_data = json.loads(r.read().decode())
+    
+    with urllib.request.urlopen(f"{DASHBOARD_URL}/api/config") as r:
+        config_data = json.loads(r.read().decode())
+    
+    # Generate report
+    report = []
+    report.append("=" * 60)
+    report.append(f"UPS STATUS REPORT - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    report.append("=" * 60)
+    report.append("")
+    
+    # UPS Status
+    report.append("UPS STATUS:")
+    report.append(f"  Battery: {ups_data.get('minutes', 'Unknown')} minutes")
+    report.append(f"  Threshold: {ups_data.get('threshold')} minutes")
+    report.append(f"  Status: {ups_data.get('status', 'Unknown').upper()}")
+    report.append("")
+    
+    # Configuration
+    report.append("CONFIGURATION:")
+    report.append(f"  UPS URL: {config_data.get('UPS_URL', 'Not configured')}")
+    report.append(f"  Minimum Minutes: {config_data.get('UPS_minimum_minutes', '15')}")
+    report.append("")
+    
+    # Client List
+    report.append("CONNECTED CLIENTS:")
+    report.append("-" * 60)
+    report.append(f"{'Hostname':<20} {'IP Address':<15} {'Delay':>8} {'Last Seen':<20}")
+    report.append("-" * 60)
+    
+    for client in clients_data.get('clients', []):
+        report.append(
+            f"{client['hostname']:<20} "
+            f"{client['ip_address']:<15} "
+            f"{client['seconds_to_shutdown']:>6}s  "
+            f"{client['last_connection_time']:<20}"
+        )
+    
+    report.append("-" * 60)
+    report.append(f"Total clients: {len(clients_data.get('clients', []))}")
+    report.append("")
+    
+    return "\n".join(report)
+
+if __name__ == "__main__":
+    print(generate_report())</code></pre>
+                
+                <h3>Output Example</h3>
+                <pre><code class="language-text">============================================================
+UPS STATUS REPORT - 2024-01-15 10:00
+============================================================
+
+UPS STATUS:
+  Battery: 120 minutes
+  Threshold: 15 minutes
+  Status: OK
+
+CONFIGURATION:
+  UPS URL: https://192.168.1.1/json/live_data.json
+  Minimum Minutes: 15
+
+CONNECTED CLIENTS:
+------------------------------------------------------------
+Hostname             IP Address      Delay Last Seen           
+------------------------------------------------------------
+web-server-01        192.168.1.100      0s  2024-01-15T09:59:45
+web-server-02        192.168.1.101      0s  2024-01-15T09:59:30
+app-server-01        192.168.1.102     30s  2024-01-15T09:59:15
+db-server-01         192.168.1.103     60s  2024-01-15T09:59:00
+------------------------------------------------------------
+Total clients: 4</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 9: Database Backup Before Shutdown</h2>
+                <p><strong>Scenario:</strong> Automatically backup database when shutdown is triggered.</p>
+                
+                <h3>Pre-Shutdown Backup Script</h3>
+                <pre><code class="language-bash">#!/bin/bash
+# /opt/scripts/backup_database.sh
+
+BACKUP_DIR="/backup/emergency"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# Create backup directory
+mkdir -p $BACKUP_DIR
+
+# PostgreSQL backup
+if command -v pg_dump &> /dev/null; then
+    echo "Backing up PostgreSQL..."
+    pg_dump -U postgres mydb > "$BACKUP_DIR/postgres_$TIMESTAMP.sql"
+fi
+
+# MySQL backup
+if command -v mysqldump &> /dev/null; then
+    echo "Backing up MySQL..."
+    mysqldump -u root --all-databases > "$BACKUP_DIR/mysql_$TIMESTAMP.sql"
+fi
+
+# Compress backups
+gzip $BACKUP_DIR/*.sql 2>/dev/null
+
+echo "Emergency backup completed: $BACKUP_DIR"</code></pre>
+                
+                <hr>
+                
+                <h2>Use Case 10: Integration with Slack Notifications</h2>
+                <p><strong>Scenario:</strong> Send Slack notifications when shutdown is triggered.</p>
+                
+                <h3>Implementation</h3>
+                <pre><code class="language-python">#!/usr/bin/env python3
+"""Slack notification for UPS events."""
+
+import urllib.request
+import json
+
+SLACK_WEBHOOK = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+def send_slack_notification(message: str, channel: str = "#ops-alerts"):
+    """Send notification to Slack."""
+    payload = {
+        "channel": channel,
+        "username": "UPS Monitor",
+        "icon_emoji": ":electric_plug:",
+        "text": message
+    }
+    
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(
+        SLACK_WEBHOOK,
+        data=data,
+        headers={'Content-Type': 'application/json'}
+    )
+    
+    urllib.request.urlopen(req)
+
+# Example: Call from pre-shutdown script
+def notify_shutdown(hostname: str, delay: int, battery_minutes: int):
+    """Notify team about impending shutdown."""
+    message = (
+        f":warning: *UPS SHUTDOWN ALERT*\n"
+        f"• Host: `{hostname}`\n"
+        f"• Shutdown in: {delay} seconds\n"
+        f"• Battery remaining: {battery_minutes} minutes\n"
+        f"• Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    send_slack_notification(message)
+
+if __name__ == "__main__":
+    import sys
+    from datetime import datetime
+    
+    if len(sys.argv) >= 4:
+        notify_shutdown(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))</code></pre>
+                
+                <h3>Usage</h3>
+                <pre><code class="language-bash"># Call from shutdown script
+/opt/scripts/slack_notify.py "web-server-01" 30 12</code></pre>
+                
+                <nav class="page-nav">
+                    <a href="getting-started.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Getting Started</span>
+                    </a>
+                    <a href="../index.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Back to</span>
+                        <span class="page-nav-title">Home →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-nginx.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

@@ -50,6 +50,7 @@ DISCOVERY_MESSAGE = b"UPS_DISCOVER"
 HEARTBEAT_TIMEOUT = 90  # 90 seconds = 30s + max 30s random + 30s buffer
 
 # UPS Monitoring Configuration
+# curl -k https://192.168.155.55/json/live_data.json
 UPS_URL = 'https://192.168.155.55/json/live_data.json'  # Default UPS data
 UPS_CHECK_INTERVAL = 60  # Check UPS every 60 seconds
 
@@ -74,14 +75,12 @@ class ClientConnection:
 class ReadUPSMinutes:
     """Class to read UPS minutes using direct JSON API access."""
     @staticmethod
-    def get_total_minutes(url, wait_time=5):
+    def get_total_minutes(url):
         """
         Extract total minutes of autonomy time from UPS JSON API
         
         Args:
             url (str): URL to the UPS JSON endpoint (e.g., https://192.168.155.55/json/live_data.json)
-            wait_time (int): Unused parameter (kept for backward compatibility)
-            
         Returns:
             int: Total minutes or None if failed
         """
@@ -738,6 +737,12 @@ class UPSServer:
             
             # Wait for the specified delay
             time.sleep(seconds_to_shutdown)
+
+            try:
+                logger.critical("pfSense shutdown using ssh. Assuming running as root, no sudo needed.")
+                subprocess.run(['ssh', '-i', '/root/.ssh/pfsense_id_rsa', 'admin@192.168.155.1', '/sbin/shutdown -p now'], check=True)
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to execute pfSense shutdown via SSH: {e}")
             
             logger.critical("Executing system shutdown NOW!")
             

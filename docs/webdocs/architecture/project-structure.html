@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Structure - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="overview.html">Architecture</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Project Structure</span>
+                    </nav>
+                    <h1 class="page-title">Project Structure</h1>
+                </header>
+                
+                <p>This document describes the organization of the Riello UPS Servers Shutdown repository.</p>
+                
+                <h2>Directory Layout</h2>
+                <pre><code class="language-bash">UPS-Riello-Servers-Shutdown/
+│
+├── README.md                    # Main project documentation
+├── LICENSE                      # Project license
+│
+├── server/                      # Server-side components
+│   ├── UPSserver.py            # Main UPS monitoring server (776 lines)
+│   ├── UPSserver.service       # Systemd service file for server
+│   ├── UPSserver.logrotate     # Log rotation configuration
+│   │
+│   ├── UPSdashboard.py         # Web dashboard interface (974 lines)
+│   ├── UPSdashboard.service    # Systemd service file for dashboard
+│   ├── UPSdashboard.logrotate  # Dashboard log rotation
+│   │
+│   └── __pycache__/            # Python bytecode cache (generated)
+│
+├── client/                      # Client-side components
+│   ├── UPSclient.py            # Client application (399 lines)
+│   ├── UPSclient.service       # Systemd service file for client
+│   └── UPSclient.logrotate     # Client log rotation configuration
+│
+└── docs/                        # Documentation (this folder)
+    ├── README.md               # Documentation index
+    ├── architecture/           # Architecture documentation
+    ├── domain/                 # Domain model documentation
+    ├── api/                    # API documentation
+    ├── services/               # Service documentation
+    ├── data/                   # Data layer documentation
+    ├── guides/                 # User guides
+    └── webdocs/                # Static HTML documentation website</code></pre>
+                
+                <h2>File Descriptions</h2>
+                
+                <h3>Server Components (server/)</h3>
+                
+                <h4>UPSserver.py</h4>
+                <p>The core server application responsible for:</p>
+                <ul>
+                    <li>Monitoring the Riello UPS via HTTPS JSON API</li>
+                    <li>Managing client connections via UDP discovery and TCP</li>
+                    <li>Storing client data and configuration in SQLite</li>
+                    <li>Coordinating shutdown sequences</li>
+                </ul>
+                <p><strong>Key Classes:</strong></p>
+                <ul>
+                    <li><code>ClientConnection</code> - Represents a connected client</li>
+                    <li><code>ReadUPSMinutes</code> - Extracts battery autonomy from UPS API</li>
+                    <li><code>UPSServer</code> - Main server class with all coordination logic</li>
+                </ul>
+                
+                <h4>UPSdashboard.py</h4>
+                <p>A self-contained web dashboard providing:</p>
+                <ul>
+                    <li>Real-time client monitoring</li>
+                    <li>UPS configuration management</li>
+                    <li>Per-client shutdown delay settings</li>
+                    <li>Auto-refreshing interface</li>
+                </ul>
+                <p><strong>Key Classes:</strong></p>
+                <ul>
+                    <li><code>DashboardHandler</code> - HTTP request handler extending <code>BaseHTTPRequestHandler</code></li>
+                </ul>
+                
+                <h4>Service Files</h4>
+                <table>
+                    <thead>
+                        <tr><th>File</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>UPSserver.service</code></td><td>Systemd unit file for UPS server daemon</td></tr>
+                        <tr><td><code>UPSdashboard.service</code></td><td>Systemd unit file for web dashboard</td></tr>
+                    </tbody>
+                </table>
+                
+                <h4>Log Rotation Files</h4>
+                <table>
+                    <thead>
+                        <tr><th>File</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>UPSserver.logrotate</code></td><td>Daily rotation, 7-day retention, 10MB max</td></tr>
+                        <tr><td><code>UPSdashboard.logrotate</code></td><td>Dashboard log rotation configuration</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Client Components (client/)</h3>
+                
+                <h4>UPSclient.py</h4>
+                <p>The client application deployed on each machine:</p>
+                <ul>
+                    <li>Discovers server via UDP broadcast</li>
+                    <li>Maintains persistent TCP connection</li>
+                    <li>Receives and executes shutdown commands</li>
+                </ul>
+                <p><strong>Key Classes:</strong></p>
+                <ul>
+                    <li><code>UPSClient</code> - Main client class handling discovery, connection, and shutdown</li>
+                </ul>
+                
+                <h2>Installation Paths</h2>
+                
+                <h3>Server Installation</h3>
+                <pre><code class="language-bash">/opt/UPSserver/
+├── UPSserver.py
+├── UPSdashboard.py
+└── ups_clients.db          # Created at runtime</code></pre>
+                
+                <h3>Client Installation</h3>
+                <pre><code class="language-bash">/opt/UPSclient/
+└── UPSclient.py</code></pre>
+                
+                <h3>Service Files</h3>
+                <pre><code class="language-bash">/etc/systemd/system/
+├── UPSserver.service
+├── UPSdashboard.service
+└── UPSclient.service</code></pre>
+                
+                <h3>Log Files</h3>
+                <pre><code class="language-bash">/var/log/
+├── UPSserver.log
+├── UPSserver_error.log
+├── UPSdashboard.log
+├── UPSdashboard_error.log
+├── UPSclient.log
+└── UPSclient_error.log</code></pre>
+                
+                <h2>Code Metrics</h2>
+                <table>
+                    <thead>
+                        <tr><th>Component</th><th>Lines of Code</th><th>Classes</th><th>Functions</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>UPSserver.py</td><td>776</td><td>3</td><td>20+</td></tr>
+                        <tr><td>UPSdashboard.py</td><td>974</td><td>1</td><td>10+</td></tr>
+                        <tr><td>UPSclient.py</td><td>399</td><td>1</td><td>10+</td></tr>
+                        <tr><td><strong>Total</strong></td><td><strong>2,149</strong></td><td><strong>5</strong></td><td><strong>40+</strong></td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>Runtime Artifacts</h2>
+                <p>The following files are created during operation:</p>
+                <table>
+                    <thead>
+                        <tr><th>File</th><th>Location</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>ups_clients.db</code></td><td>/opt/UPSserver/</td><td>SQLite database with clients and configuration</td></tr>
+                        <tr><td><code>*.log</code></td><td>/var/log/</td><td>Application logs (stdout)</td></tr>
+                        <tr><td><code>*_error.log</code></td><td>/var/log/</td><td>Error logs (stderr)</td></tr>
+                    </tbody>
+                </table>
+                
+                <nav class="page-nav">
+                    <a href="overview.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Overview</span>
+                    </a>
+                    <a href="dependencies.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Dependencies →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>
