@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Overview - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="overview.html">Architecture</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Overview</span>
+                    </nav>
+                    <h1 class="page-title">Architecture Overview</h1>
+                </header>
+                
+                <p>The Riello UPS Servers Shutdown system follows a distributed client-server architecture designed for reliability and automated graceful shutdown of multiple machines during power outages.</p>
+                
+                <h2>High-Level Architecture</h2>
+                <p>The system consists of three main components that work together:</p>
+                
+                <div class="mermaid">
+                    <pre style="background: none; border: none; text-align: left;">
+┌─────────────────┐     HTTPS/JSON      ┌─────────────────┐
+│   Riello UPS    │◄───────────────────►│   UPS Server    │
+│   (Hardware)    │                     │  (UPSserver.py) │
+└─────────────────┘                     └────────┬────────┘
+                                                 │
+                           ┌─────────────────────┼─────────────────────┐
+                           │                     │                     │
+                    ┌──────▼──────┐       ┌──────▼──────┐       ┌──────▼──────┐
+                    │ UPS Client  │       │ UPS Client  │       │ UPS Client  │
+                    │  Machine 1  │       │  Machine 2  │       │  Machine N  │
+                    └─────────────┘       └─────────────┘       └─────────────┘
+                    </pre>
+                </div>
+                
+                <h2>Component Overview</h2>
+                
+                <h3>1. UPS Server (UPSserver.py)</h3>
+                <p>The central coordination component that:</p>
+                <ul>
+                    <li><strong>Monitors UPS</strong>: Polls the Riello UPS JSON API every 60 seconds</li>
+                    <li><strong>Manages Discovery</strong>: Listens for UDP broadcast discovery requests on port 5225</li>
+                    <li><strong>Handles Connections</strong>: Accepts TCP connections from clients on port 5226</li>
+                    <li><strong>Tracks Clients</strong>: Maintains connection state and heartbeat timestamps</li>
+                    <li><strong>Persists Data</strong>: Stores client info and configuration in SQLite database</li>
+                    <li><strong>Coordinates Shutdown</strong>: Sends shutdown commands when battery is critical</li>
+                </ul>
+                <div class="note note-info">
+                    <strong>Location:</strong> Should run on the <strong>last machine to be shut down</strong> - typically the main infrastructure server.
+                </div>
+                
+                <h3>2. UPS Dashboard (UPSdashboard.py)</h3>
+                <p>A web-based management interface that:</p>
+                <ul>
+                    <li><strong>Displays Status</strong>: Shows connected clients and UPS battery level</li>
+                    <li><strong>Enables Configuration</strong>: Allows setting UPS URL and battery threshold</li>
+                    <li><strong>Manages Delays</strong>: Provides per-client shutdown delay configuration</li>
+                    <li><strong>Auto-Refreshes</strong>: Updates data every 30 seconds</li>
+                </ul>
+                <p><strong>Port:</strong> 8080 (configurable via command-line argument)</p>
+                
+                <h3>3. UPS Client (UPSclient.py)</h3>
+                <p>Deployed on each machine requiring automated shutdown:</p>
+                <ul>
+                    <li><strong>Auto-Discovery</strong>: Uses UDP broadcast to find the server</li>
+                    <li><strong>Maintains Connection</strong>: Persistent TCP connection with heartbeats</li>
+                    <li><strong>Receives Commands</strong>: Listens for shutdown instructions</li>
+                    <li><strong>Executes Shutdown</strong>: Runs OS-appropriate shutdown commands</li>
+                </ul>
+                
+                <h2>Network Architecture</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Protocol</th>
+                            <th>Port</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>UDP</td>
+                            <td>5225</td>
+                            <td>Server discovery broadcasts</td>
+                        </tr>
+                        <tr>
+                            <td>TCP</td>
+                            <td>5226</td>
+                            <td>Persistent client connections</td>
+                        </tr>
+                        <tr>
+                            <td>HTTP</td>
+                            <td>8080</td>
+                            <td>Dashboard web interface</td>
+                        </tr>
+                        <tr>
+                            <td>HTTPS</td>
+                            <td>443</td>
+                            <td>UPS JSON API access</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h2>Threading Model</h2>
+                
+                <h3>UPS Server Threads</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Thread</th>
+                            <th>Purpose</th>
+                            <th>Interval</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Main Thread</td>
+                            <td>Keeps server alive</td>
+                            <td>Continuous</td>
+                        </tr>
+                        <tr>
+                            <td>UDP Listener</td>
+                            <td>Handles discovery broadcasts</td>
+                            <td>Event-driven</td>
+                        </tr>
+                        <tr>
+                            <td>TCP Server</td>
+                            <td>Accepts client connections</td>
+                            <td>Event-driven</td>
+                        </tr>
+                        <tr>
+                            <td>Client Handler</td>
+                            <td>Per-client message handling</td>
+                            <td>Per connection</td>
+                        </tr>
+                        <tr>
+                            <td>Client Monitor</td>
+                            <td>Detects dead connections</td>
+                            <td>Every 10 seconds</td>
+                        </tr>
+                        <tr>
+                            <td>UPS Monitor</td>
+                            <td>Polls UPS battery status</td>
+                            <td>Every 60 seconds</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3>UPS Client Threads</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Thread</th>
+                            <th>Purpose</th>
+                            <th>Interval</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Main Thread</td>
+                            <td>Keeps client alive</td>
+                            <td>Continuous</td>
+                        </tr>
+                        <tr>
+                            <td>Discovery Loop</td>
+                            <td>Finds server, manages reconnection</td>
+                            <td>10-60s backoff</td>
+                        </tr>
+                        <tr>
+                            <td>Heartbeat Loop</td>
+                            <td>Sends periodic heartbeats</td>
+                            <td>30-60s (randomized)</td>
+                        </tr>
+                        <tr>
+                            <td>Message Receiver</td>
+                            <td>Processes server messages</td>
+                            <td>Event-driven</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h2>Shutdown Sequence</h2>
+                <p>When UPS battery drops below the threshold:</p>
+                <ol>
+                    <li>Server detects battery ≤ threshold (e.g., 15 minutes)</li>
+                    <li>Server sends shutdown commands to all clients with their configured delays</li>
+                    <li>Clients execute shutdown after their respective delays</li>
+                    <li>Server shuts down last with longest delay + 30s buffer</li>
+                </ol>
+                
+                <pre><code class="language-python"># Example shutdown sequence timing
+# Client A (delay: 0s)   → Shuts down immediately
+# Client B (delay: 30s)  → Shuts down after 30s
+# Client C (delay: 60s)  → Shuts down after 60s
+# Server   (delay: 90s)  → Shuts down after 60s + 30s buffer</code></pre>
+                
+                <h2>Design Patterns</h2>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Pattern</th>
+                            <th>Usage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Observer Pattern</strong></td>
+                            <td>Server broadcasts UPS status updates to all connected client observers</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Factory Pattern</strong></td>
+                            <td>ReadUPSMinutes class encapsulates UPS data retrieval logic</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Singleton Pattern</strong></td>
+                            <td>Each component runs as a single instance per machine</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Command Pattern</strong></td>
+                            <td>Shutdown commands encapsulated as message objects</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h2>Security Considerations</h2>
+                <ul>
+                    <li><strong>No Authentication</strong>: Dashboard and server-client communication have no built-in authentication</li>
+                    <li><strong>SSL Certificate Bypass</strong>: UPS API uses <code>verify_mode = ssl.CERT_NONE</code> for self-signed certificates</li>
+                    <li><strong>Root Privileges</strong>: All services run as root to enable system shutdown commands</li>
+                    <li><strong>Network Trust</strong>: System assumes a trusted local network environment</li>
+                </ul>
+                
+                <nav class="page-nav">
+                    <a href="../index.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Home</span>
+                    </a>
+                    <a href="project-structure.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Project Structure →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

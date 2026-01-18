@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entities - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="entities.html">Domain Model</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Entities</span>
+                    </nav>
+                    <h1 class="page-title">Domain Entities</h1>
+                </header>
+                
+                <p>This document describes the core domain entities in the Riello UPS Servers Shutdown system.</p>
+                
+                <h2>ClientConnection</h2>
+                <p><strong>Location:</strong> <code>server/UPSserver.py</code></p>
+                <p><strong>Purpose:</strong> Represents a connected client machine managed by the UPS server.</p>
+                
+                <h3>Properties</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>hostname</code></td><td>str</td><td>Unique identifier - the client's hostname</td></tr>
+                        <tr><td><code>ip_address</code></td><td>str</td><td>Client's IP address</td></tr>
+                        <tr><td><code>port</code></td><td>int</td><td>Connection port number</td></tr>
+                        <tr><td><code>connection</code></td><td>socket</td><td>Active TCP socket connection</td></tr>
+                        <tr><td><code>last_heartbeat</code></td><td>float</td><td>Unix timestamp of last heartbeat received</td></tr>
+                        <tr><td><code>seconds_to_shutdown</code></td><td>int</td><td>Delay before shutdown (default: 0)</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Code Definition</h3>
+                <pre><code class="language-python">class ClientConnection:
+    """Represents a connected client with its socket and metadata."""
+    
+    def __init__(self, hostname: str, ip_address: str, port: int, connection: socket.socket):
+        self.hostname = hostname
+        self.ip_address = ip_address
+        self.port = port
+        self.connection = connection
+        self.last_heartbeat = time.time()
+        self.seconds_to_shutdown = 0  # Default shutdown delay</code></pre>
+                
+                <h3>Usage Example</h3>
+                <pre><code class="language-python"># Creating a new client connection
+client = ClientConnection(
+    hostname="web-server-01",
+    ip_address="192.168.1.100",
+    port=5226,
+    connection=client_socket
+)
+
+# Updating heartbeat
+client.last_heartbeat = time.time()
+
+# Setting shutdown delay
+client.seconds_to_shutdown = 30  # 30 second delay</code></pre>
+                
+                <h2>ReadUPSMinutes</h2>
+                <p><strong>Location:</strong> <code>server/UPSserver.py</code></p>
+                <p><strong>Purpose:</strong> Encapsulates UPS API communication and data extraction.</p>
+                
+                <h3>Properties</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>url</code></td><td>str</td><td>Full URL to UPS JSON API endpoint</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Methods</h3>
+                <table>
+                    <thead>
+                        <tr><th>Method</th><th>Returns</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>get_minutes()</code></td><td>int | None</td><td>Fetches and returns battery autonomy in minutes</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Code Definition</h3>
+                <pre><code class="language-python">class ReadUPSMinutes:
+    """Reads the remaining battery minutes from the UPS JSON API."""
+    
+    def __init__(self, url: str):
+        self.url = url
+    
+    def get_minutes(self) -> int:
+        """Fetch the autonomy value from the UPS API.
+        
+        Returns:
+            int: Remaining battery minutes, or None if request fails
+        """
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        
+        try:
+            req = urllib.request.Request(self.url)
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
+                data = json.loads(response.read().decode())
+                return data.get('autonomy')
+        except Exception as e:
+            logging.error(f"Error reading UPS data: {e}")
+            return None</code></pre>
+                
+                <h2>UPSServer</h2>
+                <p><strong>Location:</strong> <code>server/UPSserver.py</code></p>
+                <p><strong>Purpose:</strong> Main server class that coordinates all monitoring and shutdown activities.</p>
+                
+                <h3>Properties</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>clients</code></td><td>Dict[str, ClientConnection]</td><td>Connected clients keyed by hostname</td></tr>
+                        <tr><td><code>clients_lock</code></td><td>threading.Lock</td><td>Thread synchronization for client dict</td></tr>
+                        <tr><td><code>running</code></td><td>bool</td><td>Server running state flag</td></tr>
+                        <tr><td><code>db_path</code></td><td>str</td><td>Path to SQLite database</td></tr>
+                        <tr><td><code>shutdown_triggered</code></td><td>bool</td><td>Whether shutdown sequence has started</td></tr>
+                        <tr><td><code>current_ups_minutes</code></td><td>int | None</td><td>Latest UPS battery reading</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Key Methods</h3>
+                <table>
+                    <thead>
+                        <tr><th>Method</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>start()</code></td><td>Initializes and starts all server threads</td></tr>
+                        <tr><td><code>stop()</code></td><td>Gracefully stops all server operations</td></tr>
+                        <tr><td><code>handle_client()</code></td><td>Processes messages from a connected client</td></tr>
+                        <tr><td><code>broadcast_shutdown()</code></td><td>Sends shutdown commands to all clients</td></tr>
+                        <tr><td><code>monitor_ups()</code></td><td>Periodically checks UPS battery status</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>UPSClient</h2>
+                <p><strong>Location:</strong> <code>client/UPSclient.py</code></p>
+                <p><strong>Purpose:</strong> Client application that connects to the server and executes shutdown commands.</p>
+                
+                <h3>Properties</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>server_ip</code></td><td>str | None</td><td>Discovered server IP address</td></tr>
+                        <tr><td><code>server_port</code></td><td>int</td><td>Server TCP port (5226)</td></tr>
+                        <tr><td><code>socket</code></td><td>socket | None</td><td>TCP connection to server</td></tr>
+                        <tr><td><code>connected</code></td><td>bool</td><td>Connection state flag</td></tr>
+                        <tr><td><code>running</code></td><td>bool</td><td>Client running state</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Key Methods</h3>
+                <table>
+                    <thead>
+                        <tr><th>Method</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>discover_server()</code></td><td>Broadcasts UDP to find server</td></tr>
+                        <tr><td><code>connect()</code></td><td>Establishes TCP connection</td></tr>
+                        <tr><td><code>send_heartbeat()</code></td><td>Sends periodic heartbeat messages</td></tr>
+                        <tr><td><code>execute_shutdown()</code></td><td>Runs OS shutdown command</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>DashboardHandler</h2>
+                <p><strong>Location:</strong> <code>server/UPSdashboard.py</code></p>
+                <p><strong>Purpose:</strong> HTTP request handler for the web dashboard interface.</p>
+                
+                <h3>Inherits From</h3>
+                <p><code>http.server.BaseHTTPRequestHandler</code></p>
+                
+                <h3>Key Methods</h3>
+                <table>
+                    <thead>
+                        <tr><th>Method</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>do_GET()</code></td><td>Handles GET requests (pages & API)</td></tr>
+                        <tr><td><code>do_POST()</code></td><td>Handles POST requests (configuration updates)</td></tr>
+                        <tr><td><code>serve_dashboard()</code></td><td>Returns the HTML dashboard page</td></tr>
+                        <tr><td><code>handle_api_clients()</code></td><td>Returns connected clients as JSON</td></tr>
+                        <tr><td><code>handle_api_config()</code></td><td>Returns server configuration</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>Database Entities</h2>
+                <p>These entities are persisted in the SQLite database.</p>
+                
+                <h3>client_connections Table</h3>
+                <table>
+                    <thead>
+                        <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>hostname</code></td><td>TEXT (PK)</td><td>Client hostname</td></tr>
+                        <tr><td><code>ip_address</code></td><td>TEXT</td><td>Client IP address</td></tr>
+                        <tr><td><code>port</code></td><td>INTEGER</td><td>Connection port</td></tr>
+                        <tr><td><code>last_connection_time</code></td><td>TEXT</td><td>ISO format timestamp</td></tr>
+                        <tr><td><code>seconds_to_shutdown</code></td><td>INTEGER</td><td>Shutdown delay</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>configuration Table</h3>
+                <table>
+                    <thead>
+                        <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>key</code></td><td>TEXT (PK)</td><td>Configuration key name</td></tr>
+                        <tr><td><code>value</code></td><td>TEXT</td><td>Configuration value</td></tr>
+                    </tbody>
+                </table>
+                
+                <nav class="page-nav">
+                    <a href="../architecture/dependencies.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Dependencies</span>
+                    </a>
+                    <a href="relationships.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Relationships →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

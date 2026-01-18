@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Getting Started - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="getting-started.html">Guides</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Getting Started</span>
+                    </nav>
+                    <h1 class="page-title">Getting Started Guide</h1>
+                </header>
+                
+                <p>This guide walks you through setting up the Riello UPS Servers Shutdown system from scratch.</p>
+                
+                <h2>Prerequisites</h2>
+                
+                <h3>Hardware Requirements</h3>
+                <ul>
+                    <li>Riello UPS with network connectivity and JSON API support</li>
+                    <li>Linux server to run UPS server components (the machine that shuts down last)</li>
+                    <li>One or more client machines (Linux, macOS, or Windows)</li>
+                </ul>
+                
+                <h3>Software Requirements</h3>
+                <ul>
+                    <li>Python 3.6 or higher on all machines</li>
+                    <li>systemd (for service management on Linux)</li>
+                    <li>Network connectivity between all machines</li>
+                </ul>
+                
+                <h3>Network Requirements</h3>
+                <table>
+                    <thead>
+                        <tr><th>Port</th><th>Protocol</th><th>Direction</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>5225</td><td>UDP</td><td>Broadcast</td><td>Server discovery</td></tr>
+                        <tr><td>5226</td><td>TCP</td><td>Inbound to server</td><td>Client connections</td></tr>
+                        <tr><td>8080</td><td>TCP</td><td>Inbound to server</td><td>Dashboard web interface</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>Step 1: Verify UPS API</h2>
+                <p>First, verify your Riello UPS JSON API is accessible:</p>
+                <pre><code class="language-bash"># Test UPS API (replace with your UPS IP)
+curl -k https://192.168.1.1/json/live_data.json
+
+# Expected response includes:
+# { "autonomy": 120, ... }</code></pre>
+                <p>Note the URL - you'll need it for configuration.</p>
+                
+                <h2>Step 2: Install Server Components</h2>
+                <p>On the server machine (the one that should shut down last):</p>
+                <pre><code class="language-bash"># Clone or download the repository
+git clone https://github.com/your-repo/UPS-Riello-Servers-Shutdown.git
+cd UPS-Riello-Servers-Shutdown
+
+# Create installation directory
+sudo mkdir -p /opt/UPSserver
+
+# Copy server files
+sudo cp server/UPSserver.py /opt/UPSserver/
+sudo cp server/UPSdashboard.py /opt/UPSserver/
+
+# Install systemd service files
+sudo cp server/UPSserver.service /etc/systemd/system/
+sudo cp server/UPSdashboard.service /etc/systemd/system/
+
+# Install logrotate configurations
+sudo cp server/UPSserver.logrotate /etc/logrotate.d/UPSserver
+sudo cp server/UPSdashboard.logrotate /etc/logrotate.d/UPSdashboard
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable services to start on boot
+sudo systemctl enable UPSserver UPSdashboard
+
+# Start services
+sudo systemctl start UPSserver UPSdashboard
+
+# Verify services are running
+sudo systemctl status UPSserver UPSdashboard</code></pre>
+                
+                <h2>Step 3: Configure Server</h2>
+                <p>Open the dashboard in your browser:</p>
+                <pre><code class="language-bash">http://&lt;server-ip&gt;:8080</code></pre>
+                
+                <p>Configure the following settings:</p>
+                <ol>
+                    <li><strong>UPS URL:</strong> Enter the full URL to your UPS JSON API
+                        <br><code>https://192.168.1.1/json/live_data.json</code></li>
+                    <li><strong>Minimum Minutes:</strong> Set the battery threshold (e.g., 15 minutes)
+                        <br>Shutdown triggers when battery drops to or below this value</li>
+                </ol>
+                
+                <h2>Step 4: Install Client Components</h2>
+                <p>On each client machine that should be shut down during power outages:</p>
+                
+                <h3>Linux/macOS</h3>
+                <pre><code class="language-bash"># Create installation directory
+sudo mkdir -p /opt/UPSclient
+
+# Copy client file
+sudo cp client/UPSclient.py /opt/UPSclient/
+
+# Install systemd service (Linux only)
+sudo cp client/UPSclient.service /etc/systemd/system/
+
+# Install logrotate configuration
+sudo cp client/UPSclient.logrotate /etc/logrotate.d/UPSclient
+
+# Reload systemd and start
+sudo systemctl daemon-reload
+sudo systemctl enable UPSclient
+sudo systemctl start UPSclient
+
+# Verify client is running
+sudo systemctl status UPSclient</code></pre>
+                
+                <h3>Windows</h3>
+                <p>Run the client manually or set up as a Windows service:</p>
+                <pre><code class="language-powershell"># Run client (requires Administrator)
+python C:\UPSclient\UPSclient.py</code></pre>
+                
+                <h2>Step 5: Configure Shutdown Delays</h2>
+                <p>Once clients connect, they appear in the dashboard. Configure shutdown delays:</p>
+                <ol>
+                    <li>Open dashboard: <code>http://&lt;server-ip&gt;:8080</code></li>
+                    <li>Find each client in the list</li>
+                    <li>Set shutdown delay in seconds:
+                        <ul>
+                            <li><strong>0:</strong> Shut down immediately when triggered</li>
+                            <li><strong>30:</strong> Wait 30 seconds before shutdown</li>
+                            <li><strong>60:</strong> Wait 60 seconds before shutdown</li>
+                        </ul>
+                    </li>
+                    <li>Click "Update" to save</li>
+                </ol>
+                
+                <div class="note note-info">
+                    <strong>Tip:</strong> Set delays based on service dependencies. For example:
+                    <ul>
+                        <li>Web servers: 0 seconds (shut down first)</li>
+                        <li>Application servers: 30 seconds</li>
+                        <li>Database servers: 60 seconds</li>
+                        <li>UPS server machine: Always shuts down last automatically</li>
+                    </ul>
+                </div>
+                
+                <h2>Step 6: Verify Setup</h2>
+                
+                <h3>Check Server Logs</h3>
+                <pre><code class="language-bash"># View server logs
+sudo tail -f /var/log/UPSserver.log
+
+# Expected output:
+# 2024-01-15 10:00:00 - INFO - UPS Server started on port 5226
+# 2024-01-15 10:00:05 - INFO - Client web-server-01 connected from 192.168.1.100</code></pre>
+                
+                <h3>Check Client Logs</h3>
+                <pre><code class="language-bash"># View client logs
+sudo tail -f /var/log/UPSclient.log
+
+# Expected output:
+# 2024-01-15 10:00:05 - INFO - Discovered server at 192.168.1.10
+# 2024-01-15 10:00:05 - INFO - Connected to server</code></pre>
+                
+                <h3>Verify Dashboard</h3>
+                <ol>
+                    <li>Open <code>http://&lt;server-ip&gt;:8080</code></li>
+                    <li>Verify all clients appear in the list</li>
+                    <li>Verify UPS battery minutes are displayed</li>
+                    <li>Verify configuration shows correct values</li>
+                </ol>
+                
+                <h2>Firewall Configuration</h2>
+                <p>If you have a firewall enabled, open the required ports:</p>
+                
+                <h3>Server Firewall (iptables)</h3>
+                <pre><code class="language-bash"># Allow UDP discovery
+sudo iptables -A INPUT -p udp --dport 5225 -j ACCEPT
+
+# Allow TCP client connections
+sudo iptables -A INPUT -p tcp --dport 5226 -j ACCEPT
+
+# Allow dashboard access
+sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
+
+# Save rules (Debian/Ubuntu)
+sudo netfilter-persistent save</code></pre>
+                
+                <h3>Server Firewall (firewalld)</h3>
+                <pre><code class="language-bash"># Allow ports
+sudo firewall-cmd --permanent --add-port=5225/udp
+sudo firewall-cmd --permanent --add-port=5226/tcp
+sudo firewall-cmd --permanent --add-port=8080/tcp
+
+# Reload firewall
+sudo firewall-cmd --reload</code></pre>
+                
+                <h2>Testing</h2>
+                
+                <h3>Test Client Discovery</h3>
+                <pre><code class="language-bash"># On a client machine, check if it can discover the server
+# The client log should show:
+# "Discovered server at 192.168.1.10"</code></pre>
+                
+                <h3>Test UPS Monitoring</h3>
+                <pre><code class="language-bash"># Check server log for UPS readings
+grep "UPS battery" /var/log/UPSserver.log
+
+# Should show periodic readings:
+# "UPS battery: 120 minutes remaining"</code></pre>
+                
+                <h3>Test Shutdown (Optional)</h3>
+                <div class="note note-warning">
+                    <strong>Warning:</strong> This will actually shut down the test machine!
+                </div>
+                <p>To test without actual shutdown, you can temporarily modify the client to log instead of shutdown:</p>
+                <pre><code class="language-python"># In UPSclient.py, temporarily change:
+# subprocess.run(['shutdown', '-h', 'now'], check=True)
+# To:
+# logging.info("WOULD SHUTDOWN NOW")</code></pre>
+                
+                <h2>Troubleshooting</h2>
+                
+                <h3>Client Not Connecting</h3>
+                <ol>
+                    <li>Check UDP broadcast is working (port 5225)</li>
+                    <li>Verify server is running: <code>systemctl status UPSserver</code></li>
+                    <li>Check firewall rules</li>
+                    <li>Verify network connectivity between client and server</li>
+                </ol>
+                
+                <h3>Dashboard Not Accessible</h3>
+                <ol>
+                    <li>Verify dashboard service: <code>systemctl status UPSdashboard</code></li>
+                    <li>Check if port 8080 is in use: <code>ss -tlnp | grep 8080</code></li>
+                    <li>Check firewall allows port 8080</li>
+                </ol>
+                
+                <h3>UPS Status Shows "Unknown"</h3>
+                <ol>
+                    <li>Verify UPS URL is correct in dashboard configuration</li>
+                    <li>Test UPS API manually: <code>curl -k &lt;UPS_URL&gt;</code></li>
+                    <li>Check server error log: <code>tail /var/log/UPSserver_error.log</code></li>
+                </ol>
+                
+                <nav class="page-nav">
+                    <a href="../data/data-access.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Data Access</span>
+                    </a>
+                    <a href="use-cases.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Use Cases →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

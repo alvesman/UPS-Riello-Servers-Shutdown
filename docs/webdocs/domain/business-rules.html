@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Rules - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="entities.html">Domain Model</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Business Rules</span>
+                    </nav>
+                    <h1 class="page-title">Business Rules</h1>
+                </header>
+                
+                <p>This document describes the core business rules and operational logic of the Riello UPS Servers Shutdown system.</p>
+                
+                <h2>Shutdown Rules</h2>
+                
+                <h3>Rule 1: Battery Threshold Trigger</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>When:</strong> UPS battery autonomy drops to or below the configured threshold.</p>
+                    <p><strong>Then:</strong> Initiate shutdown sequence for all connected clients.</p>
+                </div>
+                <pre><code class="language-python"># Implementation in monitor_ups()
+if minutes <= self.minimum_minutes and not self.shutdown_triggered:
+    self.shutdown_triggered = True
+    self.broadcast_shutdown()</code></pre>
+                
+                <h3>Rule 2: Single Shutdown Execution</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Constraint:</strong> Shutdown sequence executes only once per power event.</p>
+                    <p><strong>Rationale:</strong> Prevents repeated shutdown attempts if battery recovers then drops again.</p>
+                </div>
+                <pre><code class="language-python"># Flag prevents re-triggering
+self.shutdown_triggered = False  # Reset only on server restart</code></pre>
+                
+                <h3>Rule 3: Staggered Shutdown</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Implementation:</strong> Each client has a configurable shutdown delay.</p>
+                    <p><strong>Default:</strong> 0 seconds (immediate shutdown).</p>
+                    <p><strong>Purpose:</strong> Allows graceful service dependency shutdown.</p>
+                </div>
+                <pre><code class="language-python"># Sending shutdown with delay
+shutdown_message = {
+    "type": "shutdown",
+    "delay": client.seconds_to_shutdown
+}
+client.connection.send(json.dumps(shutdown_message).encode())</code></pre>
+                
+                <h3>Rule 4: Server Shuts Down Last</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Calculation:</strong> Server delay = Maximum client delay + 30 seconds buffer.</p>
+                    <p><strong>Rationale:</strong> Ensures server coordinates all client shutdowns before self-termination.</p>
+                </div>
+                <pre><code class="language-python"># Calculate server shutdown delay
+max_client_delay = max(c.seconds_to_shutdown for c in self.clients.values())
+server_delay = max_client_delay + 30  # 30 second buffer
+
+# Schedule server shutdown
+threading.Timer(server_delay, self.shutdown_server).start()</code></pre>
+                
+                <h2>Connection Rules</h2>
+                
+                <h3>Rule 5: Heartbeat Timeout</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Interval:</strong> Clients send heartbeats every 30-60 seconds (randomized).</p>
+                    <p><strong>Timeout:</strong> 90 seconds without heartbeat marks client as disconnected.</p>
+                    <p><strong>Action:</strong> Remove client from active connections list.</p>
+                </div>
+                <pre><code class="language-python"># Client monitor thread
+HEARTBEAT_TIMEOUT = 90  # seconds
+
+for hostname, client in list(self.clients.items()):
+    if time.time() - client.last_heartbeat > HEARTBEAT_TIMEOUT:
+        logging.info(f"Client {hostname} timed out")
+        self.remove_client(hostname)</code></pre>
+                
+                <h3>Rule 6: Auto-Reconnection</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Behavior:</strong> Clients automatically attempt reconnection on disconnect.</p>
+                    <p><strong>Backoff:</strong> Exponential backoff from 10 to 60 seconds.</p>
+                    <p><strong>Discovery:</strong> Re-runs server discovery if IP changes.</p>
+                </div>
+                <pre><code class="language-python"># Client reconnection logic
+def run(self):
+    retry_delay = 10
+    while self.running:
+        try:
+            self.discover_server()
+            self.connect()
+            self.run_connected()
+        except Exception:
+            time.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 60)  # Max 60 seconds</code></pre>
+                
+                <h3>Rule 7: Hostname Uniqueness</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Constraint:</strong> Each hostname can have only one active connection.</p>
+                    <p><strong>Behavior:</strong> New connection replaces existing connection for same hostname.</p>
+                    <p><strong>Persistence:</strong> Shutdown delay setting preserved across reconnections.</p>
+                </div>
+                <pre><code class="language-python"># Hostname as unique identifier
+self.clients[hostname] = new_client_connection
+
+# Shutdown delay restored from database
+stored_delay = self.get_stored_shutdown_delay(hostname)
+new_client_connection.seconds_to_shutdown = stored_delay</code></pre>
+                
+                <h2>UPS Polling Rules</h2>
+                
+                <h3>Rule 8: Polling Interval</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Interval:</strong> UPS status checked every 60 seconds.</p>
+                    <p><strong>Rationale:</strong> Balances responsiveness with network/API load.</p>
+                </div>
+                <pre><code class="language-python">UPS_POLL_INTERVAL = 60  # seconds
+
+def monitor_ups(self):
+    while self.running:
+        minutes = self.ups_reader.get_minutes()
+        self.current_ups_minutes = minutes
+        time.sleep(UPS_POLL_INTERVAL)</code></pre>
+                
+                <h3>Rule 9: API Failure Handling</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Timeout:</strong> UPS API requests timeout after 10 seconds.</p>
+                    <p><strong>On Failure:</strong> Log error and continue polling; do not trigger shutdown.</p>
+                    <p><strong>Rationale:</strong> Transient network issues should not cause unnecessary shutdowns.</p>
+                </div>
+                <pre><code class="language-python"># Safe failure handling
+try:
+    response = urllib.request.urlopen(req, timeout=10, context=ctx)
+    minutes = json.loads(response.read())['autonomy']
+except Exception as e:
+    logging.error(f"UPS API error: {e}")
+    minutes = None  # Don't trigger shutdown on API failure</code></pre>
+                
+                <h2>Configuration Rules</h2>
+                
+                <h3>Rule 10: Default Configuration</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>UPS_URL:</strong> Must be configured before monitoring works.</p>
+                    <p><strong>UPS_minimum_minutes:</strong> Defaults to 15 minutes if not set.</p>
+                </div>
+                
+                <h3>Rule 11: Runtime Configuration</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Behavior:</strong> Configuration changes via dashboard take effect immediately.</p>
+                    <p><strong>Persistence:</strong> Changes stored in database, survive restarts.</p>
+                    <p><strong>No Restart Required:</strong> Server reads config from database each poll cycle.</p>
+                </div>
+                <pre><code class="language-python"># Configuration read on each poll
+def monitor_ups(self):
+    while self.running:
+        config = self.load_config_from_db()
+        ups_url = config.get('UPS_URL')
+        threshold = int(config.get('UPS_minimum_minutes', 15))
+        # Use fresh config values</code></pre>
+                
+                <h2>Status Broadcasting Rules</h2>
+                
+                <h3>Rule 12: Status Updates</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Trigger:</strong> After each successful UPS poll.</p>
+                    <p><strong>Content:</strong> Current battery minutes sent to all connected clients.</p>
+                    <p><strong>Purpose:</strong> Allows clients to display/log UPS status.</p>
+                </div>
+                <pre><code class="language-python"># Broadcast status to all clients
+status_message = {
+    "type": "ups_status",
+    "minutes": minutes
+}
+
+with self.clients_lock:
+    for client in self.clients.values():
+        try:
+            client.connection.send(json.dumps(status_message).encode())
+        except:
+            pass  # Handle in heartbeat timeout</code></pre>
+                
+                <h2>Platform-Specific Rules</h2>
+                
+                <h3>Rule 13: OS-Specific Shutdown Commands</h3>
+                <div class="rule-box" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; margin: 1rem 0;">
+                    <p><strong>Linux/macOS:</strong> <code>shutdown -h now</code></p>
+                    <p><strong>Windows:</strong> <code>shutdown /s /t 0 /f</code></p>
+                </div>
+                <pre><code class="language-python">def execute_shutdown(self, delay: int):
+    time.sleep(delay)
+    
+    system = platform.system().lower()
+    if system == 'windows':
+        subprocess.run(['shutdown', '/s', '/t', '0', '/f'], check=True)
+    else:  # Linux, Darwin (macOS)
+        subprocess.run(['shutdown', '-h', 'now'], check=True)</code></pre>
+                
+                <h2>Summary Table</h2>
+                <table>
+                    <thead>
+                        <tr><th>Rule</th><th>Value</th><th>Configurable</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Heartbeat Interval</td><td>30-60 seconds</td><td>No (hardcoded)</td></tr>
+                        <tr><td>Heartbeat Timeout</td><td>90 seconds</td><td>No (hardcoded)</td></tr>
+                        <tr><td>UPS Poll Interval</td><td>60 seconds</td><td>No (hardcoded)</td></tr>
+                        <tr><td>UPS API Timeout</td><td>10 seconds</td><td>No (hardcoded)</td></tr>
+                        <tr><td>Default Battery Threshold</td><td>15 minutes</td><td>Yes (dashboard)</td></tr>
+                        <tr><td>Server Shutdown Buffer</td><td>30 seconds</td><td>No (hardcoded)</td></tr>
+                        <tr><td>Client Shutdown Delay</td><td>0 seconds (default)</td><td>Yes (per-client)</td></tr>
+                        <tr><td>Dashboard Refresh</td><td>30 seconds</td><td>No (hardcoded)</td></tr>
+                        <tr><td>Reconnection Backoff Max</td><td>60 seconds</td><td>No (hardcoded)</td></tr>
+                    </tbody>
+                </table>
+                
+                <nav class="page-nav">
+                    <a href="relationships.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Relationships</span>
+                    </a>
+                    <a href="../api/endpoints.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">API Endpoints →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

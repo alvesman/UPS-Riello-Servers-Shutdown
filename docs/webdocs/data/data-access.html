@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Access - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="database-schema.html">Data Layer</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Data Access</span>
+                    </nav>
+                    <h1 class="page-title">Data Access Patterns</h1>
+                </header>
+                
+                <p>This document describes how the Riello UPS Servers Shutdown system accesses and manipulates data in the SQLite database.</p>
+                
+                <h2>Connection Management</h2>
+                <p>The system uses short-lived database connections:</p>
+                <pre><code class="language-python"># Pattern: Open connection, execute, close immediately
+def save_client(self, hostname: str, ip_address: str, port: int):
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT OR REPLACE INTO client_connections 
+        (hostname, ip_address, port, last_connection_time)
+        VALUES (?, ?, ?, ?)
+    ''', (hostname, ip_address, port, datetime.now().isoformat()))
+    
+    conn.commit()
+    conn.close()</code></pre>
+                
+                <h3>Database Path Resolution</h3>
+                <pre><code class="language-python"># Server determines path relative to script location
+self.db_path = os.path.join(os.path.dirname(__file__), 'ups_clients.db')
+
+# Dashboard uses same location
+DB_PATH = os.path.join(os.path.dirname(__file__), 'ups_clients.db')</code></pre>
+                
+                <h2>Client Operations</h2>
+                
+                <h3>Save New Client</h3>
+                <pre><code class="language-python">def save_client_to_db(self, hostname: str, ip_address: str, port: int):
+    """Save or update client in database."""
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    # Get existing shutdown delay if client exists
+    cursor.execute(
+        'SELECT seconds_to_shutdown FROM client_connections WHERE hostname = ?',
+        (hostname,)
+    )
+    row = cursor.fetchone()
+    shutdown_delay = row[0] if row else 0
+    
+    # Insert or update client
+    cursor.execute('''
+        INSERT OR REPLACE INTO client_connections 
+        (hostname, ip_address, port, last_connection_time, seconds_to_shutdown)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (hostname, ip_address, port, datetime.now().isoformat(), shutdown_delay))
+    
+    conn.commit()
+    conn.close()</code></pre>
+                
+                <h3>Update Heartbeat Timestamp</h3>
+                <pre><code class="language-python">def update_client_heartbeat(self, hostname: str):
+    """Update the last connection time for a client."""
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE client_connections 
+        SET last_connection_time = ?
+        WHERE hostname = ?
+    ''', (datetime.now().isoformat(), hostname))
+    
+    conn.commit()
+    conn.close()</code></pre>
+                
+                <h3>Get All Clients</h3>
+                <pre><code class="language-python">def get_all_clients(self) -> list:
+    """Retrieve all client records from database."""
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT hostname, ip_address, port, last_connection_time, seconds_to_shutdown
+        FROM client_connections
+        ORDER BY hostname
+    ''')
+    
+    clients = cursor.fetchall()
+    conn.close()
+    
+    return clients</code></pre>
+                
+                <h3>Update Shutdown Delay</h3>
+                <pre><code class="language-python">def update_shutdown_delay(self, hostname: str, seconds: int) -> bool:
+    """Update shutdown delay for a specific client.
+    
+    Returns:
+        bool: True if client was found and updated, False otherwise
+    """
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE client_connections 
+        SET seconds_to_shutdown = ?
+        WHERE hostname = ?
+    ''', (seconds, hostname))
+    
+    rows_affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    
+    return rows_affected > 0</code></pre>
+                
+                <h3>Remove Client</h3>
+                <pre><code class="language-python">def remove_client_from_db(self, hostname: str):
+    """Remove a client from the database."""
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        'DELETE FROM client_connections WHERE hostname = ?',
+        (hostname,)
+    )
+    
+    conn.commit()
+    conn.close()</code></pre>
+                
+                <h2>Configuration Operations</h2>
+                
+                <h3>Get Configuration Value</h3>
+                <pre><code class="language-python">def get_config(self, key: str, default: str = None) -> str:
+    """Get a configuration value by key.
+    
+    Args:
+        key: Configuration key name
+        default: Default value if key not found
+    
+    Returns:
+        str: Configuration value or default
+    """
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        'SELECT value FROM configuration WHERE key = ?',
+        (key,)
+    )
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    return row[0] if row else default</code></pre>
+                
+                <h3>Set Configuration Value</h3>
+                <pre><code class="language-python">def set_config(self, key: str, value: str):
+    """Set a configuration value.
+    
+    Uses INSERT OR REPLACE to handle both new and existing keys.
+    """
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT OR REPLACE INTO configuration (key, value)
+        VALUES (?, ?)
+    ''', (key, value))
+    
+    conn.commit()
+    conn.close()</code></pre>
+                
+                <h3>Get All Configuration</h3>
+                <pre><code class="language-python">def get_all_config(self) -> dict:
+    """Get all configuration as a dictionary."""
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT key, value FROM configuration')
+    
+    config = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
+    
+    return config</code></pre>
+                
+                <h2>Dashboard Data Access</h2>
+                <p>The dashboard uses similar patterns but returns JSON-serializable data:</p>
+                
+                <h3>API: Get Clients</h3>
+                <pre><code class="language-python">def handle_api_clients(self):
+    """Return all clients as JSON."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT hostname, ip_address, port, last_connection_time, seconds_to_shutdown
+        FROM client_connections
+        ORDER BY hostname
+    ''')
+    
+    clients = []
+    for row in cursor.fetchall():
+        clients.append({
+            'hostname': row[0],
+            'ip_address': row[1],
+            'port': row[2],
+            'last_connection_time': row[3],
+            'seconds_to_shutdown': row[4]
+        })
+    
+    conn.close()
+    
+    return json.dumps({'clients': clients})</code></pre>
+                
+                <h3>API: Update Configuration</h3>
+                <pre><code class="language-python">def handle_update_config(self, params: dict) -> str:
+    """Update configuration from dashboard form.
+    
+    Args:
+        params: Dictionary with 'ups_url' and 'minimum_minutes'
+    
+    Returns:
+        JSON response string
+    """
+    ups_url = params.get('ups_url', [''])[0]
+    minimum_minutes = params.get('minimum_minutes', ['15'])[0]
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        'INSERT OR REPLACE INTO configuration (key, value) VALUES (?, ?)',
+        ('UPS_URL', ups_url)
+    )
+    cursor.execute(
+        'INSERT OR REPLACE INTO configuration (key, value) VALUES (?, ?)',
+        ('UPS_minimum_minutes', minimum_minutes)
+    )
+    
+    conn.commit()
+    conn.close()
+    
+    return json.dumps({'success': True, 'message': 'Configuration updated'})</code></pre>
+                
+                <h2>Error Handling</h2>
+                <p>Database operations should handle SQLite exceptions:</p>
+                <pre><code class="language-python">def safe_db_operation(self):
+    """Example of safe database operation with error handling."""
+    try:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM client_connections')
+        result = cursor.fetchall()
+        
+        conn.close()
+        return result
+        
+    except sqlite3.Error as e:
+        logging.error(f"Database error: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error accessing database: {e}")
+        return None</code></pre>
+                
+                <h2>Thread Safety</h2>
+                <p>SQLite in Python is thread-safe when:</p>
+                <ul>
+                    <li>Each thread uses its own connection</li>
+                    <li>Connections are not shared between threads</li>
+                </ul>
+                <p>The current implementation opens a new connection for each operation, which is thread-safe but has some overhead.</p>
+                <pre><code class="language-python"># Thread-safe pattern used in the system
+def operation_in_any_thread(self):
+    # Each call creates its own connection
+    conn = sqlite3.connect(self.db_path)
+    try:
+        # ... do work ...
+        conn.commit()
+    finally:
+        conn.close()  # Always close</code></pre>
+                
+                <h2>Data Migration</h2>
+                <p>If schema changes are needed, manual migration is required:</p>
+                <pre><code class="language-bash">#!/bin/bash
+# Example migration script
+
+# Backup existing database
+cp /opt/UPSserver/ups_clients.db /opt/UPSserver/ups_clients.db.backup
+
+# Apply migration
+sqlite3 /opt/UPSserver/ups_clients.db &lt;&lt;EOF
+-- Add new column example
+ALTER TABLE client_connections ADD COLUMN new_field TEXT DEFAULT '';
+EOF
+
+echo "Migration complete"</code></pre>
+                
+                <h2>Query Patterns Summary</h2>
+                <table>
+                    <thead>
+                        <tr><th>Operation</th><th>SQL Pattern</th><th>Note</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Insert/Update</td>
+                            <td><code>INSERT OR REPLACE</code></td>
+                            <td>Atomic upsert operation</td>
+                        </tr>
+                        <tr>
+                            <td>Read Single</td>
+                            <td><code>SELECT ... WHERE</code></td>
+                            <td>Returns tuple or None</td>
+                        </tr>
+                        <tr>
+                            <td>Read All</td>
+                            <td><code>SELECT ... ORDER BY</code></td>
+                            <td>Returns list of tuples</td>
+                        </tr>
+                        <tr>
+                            <td>Update</td>
+                            <td><code>UPDATE ... WHERE</code></td>
+                            <td>Check rowcount for success</td>
+                        </tr>
+                        <tr>
+                            <td>Delete</td>
+                            <td><code>DELETE ... WHERE</code></td>
+                            <td>Used when client disconnects</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <nav class="page-nav">
+                    <a href="database-schema.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Database Schema</span>
+                    </a>
+                    <a href="../guides/getting-started.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Getting Started →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

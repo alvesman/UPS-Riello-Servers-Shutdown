@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Handling - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../architecture/overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="../architecture/project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="../architecture/dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="endpoints.html">API Reference</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Error Handling</span>
+                    </nav>
+                    <h1 class="page-title">Error Handling</h1>
+                </header>
+                
+                <p>This document describes error handling patterns and error responses in the Riello UPS Servers Shutdown system.</p>
+                
+                <h2>HTTP API Errors</h2>
+                
+                <h3>Error Response Format</h3>
+                <p>All API errors return a JSON object with consistent structure:</p>
+                <pre><code class="language-json">{
+  "success": false,
+  "error": "Description of the error"
+}</code></pre>
+                
+                <h3>HTTP Status Codes</h3>
+                <table>
+                    <thead>
+                        <tr><th>Status Code</th><th>Meaning</th><th>When Returned</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>200</td><td>OK</td><td>Request succeeded (even if operation failed)</td></tr>
+                        <tr><td>404</td><td>Not Found</td><td>Unknown endpoint</td></tr>
+                        <tr><td>500</td><td>Internal Server Error</td><td>Unhandled exception</td></tr>
+                    </tbody>
+                </table>
+                
+                <div class="note note-info">
+                    <strong>Note:</strong> The dashboard returns HTTP 200 even for failed operations, with the error details in the JSON body. Check the <code>success</code> field to determine actual operation status.
+                </div>
+                
+                <h3>Common API Errors</h3>
+                
+                <h4>Client Not Found</h4>
+                <pre><code class="language-json">{
+  "success": false,
+  "error": "Client not found"
+}</code></pre>
+                <p><strong>Cause:</strong> Attempting to update shutdown delay for non-existent hostname.</p>
+                <p><strong>Resolution:</strong> Verify the hostname exists in the clients list.</p>
+                
+                <h4>Invalid Parameter</h4>
+                <pre><code class="language-json">{
+  "success": false,
+  "error": "Invalid seconds value"
+}</code></pre>
+                <p><strong>Cause:</strong> Non-numeric or negative value for shutdown delay.</p>
+                <p><strong>Resolution:</strong> Provide a positive integer for <code>seconds</code> parameter.</p>
+                
+                <h4>Database Error</h4>
+                <pre><code class="language-json">{
+  "success": false,
+  "error": "Database error: ..."
+}</code></pre>
+                <p><strong>Cause:</strong> SQLite database access failure.</p>
+                <p><strong>Resolution:</strong> Check file permissions on <code>ups_clients.db</code>.</p>
+                
+                <h2>Server-Client Protocol Errors</h2>
+                
+                <h3>Connection Errors</h3>
+                <table>
+                    <thead>
+                        <tr><th>Error</th><th>Cause</th><th>Behavior</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Connection refused</td><td>Server not running</td><td>Client retries with backoff</td></tr>
+                        <tr><td>Connection timeout</td><td>Network unreachable</td><td>Client retries with backoff</td></tr>
+                        <tr><td>Connection reset</td><td>Server restart/crash</td><td>Client reconnects</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Client Error Handling</h3>
+                <pre><code class="language-python"># Client reconnection logic with exponential backoff
+def run(self):
+    retry_delay = 10  # Start with 10 seconds
+    max_retry_delay = 60  # Cap at 60 seconds
+    
+    while self.running:
+        try:
+            self.discover_server()
+            self.connect()
+            self.run_connected()
+            retry_delay = 10  # Reset on successful connection
+        except socket.error as e:
+            logging.error(f"Connection error: {e}")
+            time.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, max_retry_delay)
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+            time.sleep(retry_delay)</code></pre>
+                
+                <h3>Server Error Handling</h3>
+                <pre><code class="language-python"># Server handles client disconnection gracefully
+def handle_client(self, client_socket, address):
+    try:
+        while self.running:
+            data = client_socket.recv(4096)
+            if not data:
+                break  # Client disconnected
+            self.process_message(data, address)
+    except socket.error as e:
+        logging.warning(f"Client socket error: {e}")
+    finally:
+        self.remove_client_by_socket(client_socket)
+        client_socket.close()</code></pre>
+                
+                <h2>UPS API Errors</h2>
+                
+                <h3>Connection Failures</h3>
+                <table>
+                    <thead>
+                        <tr><th>Error Type</th><th>Cause</th><th>Server Behavior</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Connection timeout</td><td>UPS unreachable</td><td>Log error, retry next cycle</td></tr>
+                        <tr><td>SSL error</td><td>Certificate issues</td><td>Bypassed (CERT_NONE)</td></tr>
+                        <tr><td>JSON parse error</td><td>Malformed response</td><td>Log error, return None</td></tr>
+                        <tr><td>Missing field</td><td>API format change</td><td>Return None</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>UPS API Error Handling</h3>
+                <pre><code class="language-python">def get_minutes(self) -> int:
+    """Fetch battery autonomy from UPS API.
+    
+    Returns:
+        int: Battery minutes remaining, or None on error
+    """
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    
+    try:
+        req = urllib.request.Request(self.url)
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
+            data = json.loads(response.read().decode())
+            return data.get('autonomy')  # Returns None if key missing
+    except urllib.error.URLError as e:
+        logging.error(f"UPS URL error: {e}")
+        return None
+    except socket.timeout:
+        logging.error("UPS API timeout")
+        return None
+    except json.JSONDecodeError as e:
+        logging.error(f"UPS JSON parse error: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected UPS error: {e}")
+        return None</code></pre>
+                
+                <h2>Logging</h2>
+                
+                <h3>Log Levels</h3>
+                <table>
+                    <thead>
+                        <tr><th>Level</th><th>Usage</th><th>Example</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>DEBUG</td><td>Detailed debugging info</td><td>Message parsing details</td></tr>
+                        <tr><td>INFO</td><td>Normal operations</td><td>Client connected, heartbeat received</td></tr>
+                        <tr><td>WARNING</td><td>Unexpected but handled</td><td>Client timeout, retrying</td></tr>
+                        <tr><td>ERROR</td><td>Operation failures</td><td>UPS API failed, database error</td></tr>
+                        <tr><td>CRITICAL</td><td>System-level failures</td><td>Cannot start server</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Log Format</h3>
+                <pre><code class="language-python"># Standard logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)</code></pre>
+                
+                <h3>Example Log Output</h3>
+                <pre><code class="language-text">2024-01-15 10:30:00 - INFO - UPS Server started on port 5226
+2024-01-15 10:30:05 - INFO - Client web-server-01 connected from 192.168.1.100
+2024-01-15 10:30:35 - INFO - Heartbeat received from web-server-01
+2024-01-15 10:31:00 - INFO - UPS battery: 120 minutes remaining
+2024-01-15 10:32:05 - WARNING - Client web-server-01 heartbeat timeout
+2024-01-15 10:32:05 - INFO - Removed client web-server-01
+2024-01-15 10:33:00 - ERROR - UPS API error: Connection timed out</code></pre>
+                
+                <h2>Recovery Strategies</h2>
+                
+                <h3>Automatic Recovery</h3>
+                <table>
+                    <thead>
+                        <tr><th>Failure Type</th><th>Recovery Strategy</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Client disconnect</td><td>Automatic reconnection with backoff</td></tr>
+                        <tr><td>Server restart</td><td>Clients rediscover and reconnect</td></tr>
+                        <tr><td>UPS API failure</td><td>Continues polling, logs error</td></tr>
+                        <tr><td>Database error</td><td>Retries on next operation</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Manual Recovery</h3>
+                <table>
+                    <thead>
+                        <tr><th>Issue</th><th>Resolution</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Service won't start</td><td>Check logs, verify permissions, check ports</td></tr>
+                        <tr><td>Database corruption</td><td>Delete <code>ups_clients.db</code>, restart services</td></tr>
+                        <tr><td>Stuck shutdown flag</td><td>Restart UPSserver service</td></tr>
+                        <tr><td>Client not appearing</td><td>Check firewall, verify UDP broadcast</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>Systemd Restart Behavior</h2>
+                <pre><code class="language-ini">[Service]
+Restart=always
+RestartSec=5</code></pre>
+                <p>Systemd automatically restarts services on failure with a 5-second delay.</p>
+                
+                <nav class="page-nav">
+                    <a href="authentication.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Authentication</span>
+                    </a>
+                    <a href="../services/service-reference.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Service Reference →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-ini.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

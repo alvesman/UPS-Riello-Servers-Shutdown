@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dependencies - UPS Shutdown Docs</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="../index.html" class="sidebar-logo">🔌 UPS Shutdown Docs</a>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search documentation...">
+            </div>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Getting Started</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../index.html" class="nav-link">Home</a></li>
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Getting Started</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Architecture</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="overview.html" class="nav-link">Overview</a></li>
+                        <li class="nav-item"><a href="project-structure.html" class="nav-link">Project Structure</a></li>
+                        <li class="nav-item"><a href="dependencies.html" class="nav-link">Dependencies</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Domain Model</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../domain/entities.html" class="nav-link">Entities</a></li>
+                        <li class="nav-item"><a href="../domain/relationships.html" class="nav-link">Relationships</a></li>
+                        <li class="nav-item"><a href="../domain/business-rules.html" class="nav-link">Business Rules</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">API Reference</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../api/endpoints.html" class="nav-link">Endpoints</a></li>
+                        <li class="nav-item"><a href="../api/authentication.html" class="nav-link">Authentication</a></li>
+                        <li class="nav-item"><a href="../api/error-handling.html" class="nav-link">Error Handling</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Services</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../services/service-reference.html" class="nav-link">Service Reference</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Data Layer</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../data/database-schema.html" class="nav-link">Database Schema</a></li>
+                        <li class="nav-item"><a href="../data/data-access.html" class="nav-link">Data Access</a></li>
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Guides</div>
+                    <ul class="nav-list">
+                        <li class="nav-item"><a href="../guides/getting-started.html" class="nav-link">Setup Guide</a></li>
+                        <li class="nav-item"><a href="../guides/use-cases.html" class="nav-link">Use Cases</a></li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="content-wrapper">
+                <header class="page-header">
+                    <nav class="breadcrumb">
+                        <a href="../index.html">Home</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="overview.html">Architecture</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span>Dependencies</span>
+                    </nav>
+                    <h1 class="page-title">Dependencies</h1>
+                </header>
+                
+                <p>This document lists all external dependencies and system requirements for the Riello UPS Servers Shutdown system.</p>
+                
+                <h2>Python Version</h2>
+                <ul>
+                    <li><strong>Required</strong>: Python 3.6 or higher</li>
+                    <li><strong>Recommended</strong>: Python 3.8+</li>
+                </ul>
+                
+                <h2>Python Dependencies</h2>
+                <div class="note note-info">
+                    The system uses <strong>only Python standard library modules</strong> - no external packages are required.
+                </div>
+                
+                <h3>Server Dependencies (UPSserver.py)</h3>
+                <table>
+                    <thead>
+                        <tr><th>Module</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>socket</code></td><td>UDP/TCP network communication</td></tr>
+                        <tr><td><code>threading</code></td><td>Multi-threaded server operations</td></tr>
+                        <tr><td><code>json</code></td><td>JSON parsing for UPS API and messages</td></tr>
+                        <tr><td><code>time</code></td><td>Timestamps and delays</td></tr>
+                        <tr><td><code>logging</code></td><td>Structured logging output</td></tr>
+                        <tr><td><code>sqlite3</code></td><td>Database operations</td></tr>
+                        <tr><td><code>platform</code></td><td>OS detection for shutdown commands</td></tr>
+                        <tr><td><code>subprocess</code></td><td>Executing system shutdown commands</td></tr>
+                        <tr><td><code>sys</code></td><td>Standard I/O stream handling</td></tr>
+                        <tr><td><code>urllib.request</code></td><td>HTTP requests to UPS API</td></tr>
+                        <tr><td><code>ssl</code></td><td>HTTPS connection handling</td></tr>
+                        <tr><td><code>typing</code></td><td>Type hints (Dict, Tuple)</td></tr>
+                        <tr><td><code>datetime</code></td><td>Timestamp formatting</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Dashboard Dependencies (UPSdashboard.py)</h3>
+                <table>
+                    <thead>
+                        <tr><th>Module</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>sqlite3</code></td><td>Database read/write operations</td></tr>
+                        <tr><td><code>json</code></td><td>JSON API responses</td></tr>
+                        <tr><td><code>os</code></td><td>File path operations</td></tr>
+                        <tr><td><code>http.server</code></td><td>Built-in HTTP server</td></tr>
+                        <tr><td><code>urllib.parse</code></td><td>URL and query string parsing</td></tr>
+                        <tr><td><code>datetime</code></td><td>Date/time formatting</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Client Dependencies (UPSclient.py)</h3>
+                <table>
+                    <thead>
+                        <tr><th>Module</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>socket</code></td><td>UDP discovery and TCP connection</td></tr>
+                        <tr><td><code>threading</code></td><td>Concurrent heartbeat and message handling</td></tr>
+                        <tr><td><code>json</code></td><td>Message serialization/deserialization</td></tr>
+                        <tr><td><code>time</code></td><td>Delays and timestamps</td></tr>
+                        <tr><td><code>random</code></td><td>Heartbeat jitter calculation</td></tr>
+                        <tr><td><code>logging</code></td><td>Structured logging</td></tr>
+                        <tr><td><code>platform</code></td><td>OS detection for shutdown commands</td></tr>
+                        <tr><td><code>subprocess</code></td><td>Executing shutdown commands</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>System Requirements</h2>
+                
+                <h3>Operating System Support</h3>
+                <table>
+                    <thead>
+                        <tr><th>OS</th><th>Server</th><th>Client</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Linux</td><td>✅</td><td>✅</td><td>Primary platform, uses <code>shutdown -h now</code></td></tr>
+                        <tr><td>macOS</td><td>✅</td><td>✅</td><td>Uses <code>shutdown -h now</code></td></tr>
+                        <tr><td>Windows</td><td>❌</td><td>✅</td><td>Client uses <code>shutdown /s /t 0 /f</code></td></tr>
+                    </tbody>
+                </table>
+                <div class="note note-warning">
+                    <strong>Note:</strong> The server is designed to run on Linux with systemd. Windows clients are supported but server deployment on Windows is not recommended.
+                </div>
+                
+                <h3>Network Requirements</h3>
+                <table>
+                    <thead>
+                        <tr><th>Port</th><th>Protocol</th><th>Direction</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>5225</td><td>UDP</td><td>Inbound/Outbound</td><td>Server discovery broadcasts</td></tr>
+                        <tr><td>5226</td><td>TCP</td><td>Inbound</td><td>Client connections to server</td></tr>
+                        <tr><td>8080</td><td>TCP</td><td>Inbound</td><td>Dashboard web interface</td></tr>
+                        <tr><td>443</td><td>HTTPS</td><td>Outbound</td><td>UPS JSON API access</td></tr>
+                    </tbody>
+                </table>
+                
+                <h3>Permissions</h3>
+                <table>
+                    <thead>
+                        <tr><th>Component</th><th>Required Permission</th><th>Reason</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>UPSserver</td><td>root</td><td>Execute system shutdown</td></tr>
+                        <tr><td>UPSdashboard</td><td>root</td><td>Access database in /opt</td></tr>
+                        <tr><td>UPSclient</td><td>root</td><td>Execute system shutdown</td></tr>
+                    </tbody>
+                </table>
+                
+                <h2>External Service Dependencies</h2>
+                
+                <h3>Riello UPS JSON API</h3>
+                <p>The system requires a Riello UPS with network connectivity and JSON API support.</p>
+                
+                <p><strong>API Endpoint:</strong></p>
+                <pre><code class="language-bash">https://&lt;UPS_IP&gt;/json/live_data.json</code></pre>
+                
+                <p><strong>Expected Response Format:</strong></p>
+                <pre><code class="language-json">{
+    "autonomy": 120,
+    ...
+}</code></pre>
+                
+                <p>The <code>autonomy</code> field contains the remaining battery time in minutes.</p>
+                
+                <p><strong>Connection Requirements:</strong></p>
+                <ul>
+                    <li>HTTPS (port 443)</li>
+                    <li>Self-signed certificates are accepted (SSL verification disabled)</li>
+                    <li>Timeout: 10 seconds</li>
+                </ul>
+                
+                <h2>Optional Dependencies</h2>
+                
+                <h3>Systemd</h3>
+                <ul>
+                    <li><strong>Required for</strong>: Service management, automatic restart, log routing</li>
+                    <li><strong>Alternative</strong>: Manual process management or other init systems</li>
+                </ul>
+                
+                <h3>Logrotate</h3>
+                <ul>
+                    <li><strong>Required for</strong>: Automatic log file rotation</li>
+                    <li><strong>Alternative</strong>: Manual log management</li>
+                </ul>
+                
+                <h2>Version Compatibility</h2>
+                <table>
+                    <thead>
+                        <tr><th>Component</th><th>Minimum Version</th><th>Tested With</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Python</td><td>3.6</td><td>3.8, 3.9, 3.10, 3.11</td></tr>
+                        <tr><td>SQLite</td><td>3.7</td><td>3.31+</td></tr>
+                        <tr><td>systemd</td><td>219</td><td>245+</td></tr>
+                        <tr><td>logrotate</td><td>3.8</td><td>3.14+</td></tr>
+                    </tbody>
+                </table>
+                
+                <nav class="page-nav">
+                    <a href="project-structure.html" class="page-nav-link">
+                        <span class="page-nav-label">Previous</span>
+                        <span class="page-nav-title">← Project Structure</span>
+                    </a>
+                    <a href="../domain/entities.html" class="page-nav-link page-nav-next">
+                        <span class="page-nav-label">Next</span>
+                        <span class="page-nav-title">Entities →</span>
+                    </a>
+                </nav>
+            </div>
+        </main>
+    </div>
+    
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>
