@@ -62,11 +62,23 @@ This document provides a comprehensive reference for all services in the Riello 
 | `_tcp_server()` | TCP Thread | Accept incoming connections |
 | `_handle_client(conn, addr)` | Per-Client Thread | Process client messages |
 | `_monitor_clients()` | Monitor Thread | Detect and remove dead clients |
-| `_ups_monitor()` | UPS Thread | Poll UPS and broadcast status |
+| `_ups_monitor()` | UPS Thread | Poll UPS and broadcast status (with recovery mode support) |
 | `_get_server_ip()` | - | Determine server's IP address |
-| `_execute_shutdown(seconds)` | - | Execute system shutdown |
+| `_execute_shutdown(seconds)` | - | Execute system shutdown (sets shutdown_issued flag) |
 | `_record_client_connection(hostname, addr)` | - | Save client to database |
 | `_update_heartbeat_time(hostname, addr)` | - | Update last seen time |
+| `_check_recovery_mode()` | - | Check if shutdown was previously issued (returns bool) |
+| `_set_shutdown_issued(issued)` | - | Set or clear the shutdown_issued database flag |
+| `_exit_recovery_mode()` | - | Exit recovery mode and clear the shutdown flag |
+
+### Instance Variables
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `recovery_mode` | `bool` | True if server started after a shutdown was issued |
+| `consecutive_low_readings` | `int` | Counter for consecutive low UPS readings |
+| `REQUIRED_LOW_READINGS` | `int` | Number of consecutive low readings before shutdown (5) |
+| `RECOVERY_BUFFER_MINUTES` | `int` | Extra minutes above threshold for recovery exit (60) |
 
 ### Systemd Service File
 

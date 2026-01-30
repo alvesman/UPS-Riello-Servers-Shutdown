@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS configuration (
 |-----|---------------|-------------|
 | `UPS_URL` | `https://192.168.155.55/json/live_data.json` | URL to UPS JSON API |
 | `UPS_minimum_minutes` | `15` | Battery threshold for shutdown |
+| `shutdown_issued` | `false` | Flag indicating if a shutdown was issued (used for recovery mode) |
 
 **Example Data**:
 ```
@@ -108,6 +109,7 @@ key                  | value
 ---------------------|-----------------------------------------------
 UPS_URL              | https://192.168.155.55/json/live_data.json
 UPS_minimum_minutes  | 15
+shutdown_issued      | false
 ```
 
 ---
@@ -152,6 +154,14 @@ def _init_database(self):
         cursor.execute('''
             INSERT OR IGNORE INTO configuration (key, value)
             VALUES ('UPS_minimum_minutes', '15')
+        ''')
+        
+        # Insert default shutdown_issued flag if not exists
+        # This flag is set to 'true' just before issuing a shutdown command
+        # and is used to detect if we're recovering from a shutdown
+        cursor.execute('''
+            INSERT OR IGNORE INTO configuration (key, value)
+            VALUES ('shutdown_issued', 'false')
         ''')
         
         conn.commit()

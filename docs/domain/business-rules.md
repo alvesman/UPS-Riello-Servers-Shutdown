@@ -30,6 +30,48 @@ if total_minutes <= ups_minimum_minutes:
 
 ---
 
+### Rule 1a: Recovery Mode After Shutdown
+
+**Description**: After a shutdown is issued, the server must not immediately re-trigger shutdowns if it restarts (e.g., due to power being restored before the shutdown completes). The server enters "recovery mode" and ignores shutdown triggers until the UPS battery has recovered significantly.
+
+**Implementation**: `UPSserver.py` - `_ups_monitor()` and `_execute_shutdown()` methods
+
+**How It Works**:
+1. Just before executing a shutdown command, the server sets `shutdown_issued = 'true'` in the database
+2. On startup, the server checks this flag and enters recovery mode if set
+3. In recovery mode, shutdown triggers are ignored even if battery is below threshold
+4. Recovery mode exits when UPS battery exceeds `threshold + 60 minutes`
+5. Once recovery mode exits, the flag is cleared and normal operation resumes
+
+```python
+# Check on startup
+self.recovery_mode = self._check_recovery_mode()
+
+# Recovery mode logic in _ups_monitor
+if self.recovery_mode:
+    if total_minutes > recovery_threshold:  # threshold + 60 minutes
+        self._exit_recovery_mode()
+    else:
+        # Ignore shutdown triggers, continue broadcasting status
+        continue
+```
+
+**Parameters**:
+- Recovery buffer: **60 minutes** above threshold
+- Example: With 15-minute threshold, recovery requires **75 minutes** of autonomy
+
+**Use Cases**:
+1. **Brief Power Blip**: Power fails, shutdown triggers, power returns before shutdown completes. Server restarts in recovery mode and waits for full battery recharge.
+2. **Shutdown Failure**: Shutdown command fails for any reason. Server continues in recovery mode preventing immediate re-trigger.
+3. **Rapid Power Cycling**: Prevents repeated shutdown attempts during unstable power conditions.
+
+**Log Messages**:
+- Startup: `"Server starting in RECOVERY MODE - shutdown triggers will be ignored until UPS battery recovers"`
+- Recovery: `"RECOVERY MODE: UPS battery (X min) still below recovery threshold (Y min) - shutdown triggers IGNORED"`
+- Exit: `"Exited RECOVERY MODE - normal shutdown monitoring resumed"`
+
+---
+
 ### Rule 2: Server Shuts Down Last
 
 **Description**: The UPS server must always be the last machine to shut down, ensuring all clients receive their shutdown commands.
@@ -230,6 +272,7 @@ Group=root
 | `UPS_URL` | Must be valid HTTPS URL | Falls back to default |
 | `UPS_minimum_minutes` | Must be positive integer | Falls back to 15 |
 | `seconds_to_shutdown` | Must be non-negative integer | Rejects invalid values |
+| `shutdown_issued` | Must be 'true' or 'false' | Falls back to 'false' |
 
 ### Connection Validation
 
@@ -256,6 +299,8 @@ Group=root
 | Heartbeat Jitter | 0-30 seconds | `UPSclient.py` |
 | Server Shutdown Buffer | 30 seconds | `UPSserver.py` |
 | Default Battery Threshold | 15 minutes | `UPSserver.py` |
+| Recovery Buffer | 60 minutes | `UPSserver.py` |
+| Consecutive Low Readings | 5 | `UPSserver.py` |
 
 ---
 
