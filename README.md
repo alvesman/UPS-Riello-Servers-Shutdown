@@ -11,7 +11,7 @@ The system consists of three main components:
 - Monitors a Riello UPS device via HTTPS JSON API (`https://UPS_DASHBOARD_IP/json/live_data.json`)
 - Polls the UPS every 60 seconds to check battery autonomy (remaining minutes)
 - Manages client connections via UDP discovery (port 5225) and TCP communication (port 5226)
-- Stores client information and configuration in SQLite database (`ups_clients.db`)
+- Stores client inforvmation and configuration in SQLite database (`ups_clients.db`)
 - When battery drops below threshold (default: 15 minutes):
   - Sends shutdown commands to all connected clients with configurable delays
   - Shuts itself down last (after max client delay + 30s buffer)
