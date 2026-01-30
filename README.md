@@ -36,7 +36,7 @@ The system consists of three main components:
   - `ups_status`: Regular battery updates
   - `shutdown`: Critical command triggering system shutdown
 - Implements exponential backoff for reconnection (10-60 seconds)
-- Executes OS-appropriate shutdown commands (Linux/macOS/Windows)
+- Executes OS-appropriate shutdown commands (Linux/macOS)
 
 ## Key Features
 
