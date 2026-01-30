@@ -422,8 +422,14 @@ class UPSServer:
                             'server_ip': self._get_server_ip()
                         }).encode('utf-8')
                         
+                        # Send to original address (works for local clients)
                         self.udp_socket.sendto(response, addr)
                         logger.info(f"Sent discovery response to {addr}")
+                        
+                        # Also broadcast (for relayed clients)
+                        self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                        self.udp_socket.sendto(response, ('<broadcast>', UDP_BROADCAST_PORT))
+                        logger.info(f"Broadcast discovery response on port {UDP_BROADCAST_PORT}")
                 
                 except socket.timeout:
                     continue
