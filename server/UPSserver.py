@@ -145,10 +145,14 @@ class UPSServer:
         self.lock = threading.Lock()
         self.db_path = db_path
         self._init_database()
-        self.db_path = db_path
-        self._init_database()
         self.consecutive_low_readings = 0  # Track consecutive low UPS readings
         self.REQUIRED_LOW_READINGS = 5  # Number of consecutive low readings before shutdown
+        self.RECOVERY_BUFFER_MINUTES = 60  # Extra minutes above threshold required to exit recovery mode
+        
+        # Check if we're recovering from a previous shutdown
+        self.recovery_mode = self._check_recovery_mode()
+        if self.recovery_mode:
+            logger.warning("Server starting in RECOVERY MODE - shutdown triggers will be ignored until UPS battery recovers")
     
     def _init_database(self):
         """Initialize the SQLite database for tracking client connections."""
@@ -185,6 +189,14 @@ class UPSServer:
             cursor.execute('''
                 INSERT OR IGNORE INTO configuration (key, value)
                 VALUES ('UPS_minimum_minutes', '15')
+            ''')
+            
+            # Insert default shutdown_issued flag if not exists
+            # This flag is set to 'true' just before issuing a shutdown command
+            # and is used to detect if we're recovering from a shutdown
+            cursor.execute('''
+                INSERT OR IGNORE INTO configuration (key, value)
+                VALUES ('shutdown_issued', 'false')
             ''')
             
             conn.commit()
@@ -337,6 +349,40 @@ class UPSServer:
             logger.info(f"Configuration updated: {key} = {value}")
         except Exception as e:
             logger.error(f"Failed to set config value for {key}: {e}")
+    
+    def _check_recovery_mode(self) -> bool:
+        """Check if the server is recovering from a previous shutdown.
+        
+        This is determined by checking if the 'shutdown_issued' flag is set
+        to 'true' in the database. This flag is set just before the server
+        issues shutdown commands and is cleared when the UPS battery
+        recovers above the threshold plus a buffer.
+        
+        Returns:
+            True if in recovery mode (shutdown was previously issued), False otherwise.
+        """
+        shutdown_issued = self.get_config_value('shutdown_issued', 'false')
+        return shutdown_issued.lower() == 'true'
+    
+    def _set_shutdown_issued(self, issued: bool):
+        """Set the shutdown_issued flag in the database.
+        
+        Args:
+            issued: True to set the flag, False to clear it.
+        """
+        value = 'true' if issued else 'false'
+        self.set_config_value('shutdown_issued', value)
+        if issued:
+            logger.critical("Shutdown issued flag SET - recovery mode will be active on next startup")
+        else:
+            logger.info("Shutdown issued flag CLEARED - normal operation resumed")
+    
+    def _exit_recovery_mode(self):
+        """Exit recovery mode after UPS battery has recovered sufficiently."""
+        self.recovery_mode = False
+        self._set_shutdown_issued(False)
+        self.consecutive_low_readings = 0
+        logger.info("Exited RECOVERY MODE - normal shutdown monitoring resumed")
     
     def start(self):
         """Start the server."""
@@ -613,7 +659,31 @@ class UPSServer:
                         ups_minimum_minutes = 15
                         logger.warning(f"Invalid UPS_minimum_minutes value, using default: 15")
                     
-                    # Check if we need to send shutdown command
+                    # Calculate recovery threshold (threshold + buffer)
+                    recovery_threshold = ups_minimum_minutes + self.RECOVERY_BUFFER_MINUTES
+                    
+                    # If in recovery mode, check if we can exit
+                    if self.recovery_mode:
+                        if total_minutes > recovery_threshold:
+                            logger.info(f"UPS battery ({total_minutes} min) exceeds recovery threshold ({recovery_threshold} min)")
+                            self._exit_recovery_mode()
+                        else:
+                            logger.warning(f"RECOVERY MODE: UPS battery ({total_minutes} min) still below recovery threshold ({recovery_threshold} min) - shutdown triggers IGNORED")
+                            # Still broadcast status to clients even in recovery mode
+                            message = {
+                                'type': 'ups_status',
+                                'total_minutes': total_minutes,
+                                'recovery_mode': True,
+                                'recovery_threshold': recovery_threshold,
+                                'timestamp': time.time()
+                            }
+                            logger.info(f"UPS Total Minutes: {total_minutes} - Broadcasting to clients (recovery mode)")
+                            self.broadcast_message(message)
+                            # Skip the rest of the loop iteration (don't process shutdown logic)
+                            time.sleep(UPS_CHECK_INTERVAL)
+                            continue
+                    
+                    # Normal operation: Check if we need to send shutdown command
                     if total_minutes <= ups_minimum_minutes:
                         self.consecutive_low_readings += 1
                         logger.warning(f"UPS battery critical! Total minutes ({total_minutes}) <= threshold ({ups_minimum_minutes}) - consecutive reading {self.consecutive_low_readings}/{self.REQUIRED_LOW_READINGS}")
@@ -749,7 +819,13 @@ class UPSServer:
             ]
     
     def _execute_shutdown(self, seconds_to_shutdown: int):
-        """Execute system shutdown after specified delay."""
+        """Execute system shutdown after specified delay.
+        
+        Before executing the shutdown, this method sets the 'shutdown_issued' flag
+        in the database. If the shutdown fails or is interrupted, this flag will
+        cause the server to start in recovery mode on next startup, preventing
+        immediate re-triggering of shutdown until the UPS battery recovers.
+        """
         try:
             logger.critical(f"System shutdown initiated - waiting {seconds_to_shutdown} seconds...")
             
@@ -768,6 +844,11 @@ class UPSServer:
             system = platform.system()
             
             if system == "Linux" or system == "Darwin":  # Linux or macOS
+                # Set the shutdown_issued flag BEFORE executing shutdown
+                # This ensures recovery mode is active if the server restarts
+                # (e.g., power restored before shutdown completes, or shutdown fails)
+                self._set_shutdown_issued(True)
+                
                 # Assume running as root, no sudo needed
                 # -h = halt, now = immediately
                 # Use full path since systemd services may not have /sbin in PATH
