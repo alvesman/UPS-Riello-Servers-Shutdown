@@ -147,6 +147,8 @@ class UPSServer:
         self._init_database()
         self.db_path = db_path
         self._init_database()
+        self.consecutive_low_readings = 0  # Track consecutive low UPS readings
+        self.REQUIRED_LOW_READINGS = 5  # Number of consecutive low readings before shutdown
     
     def _init_database(self):
         """Initialize the SQLite database for tracking client connections."""
@@ -607,42 +609,52 @@ class UPSServer:
                     
                     # Check if we need to send shutdown command
                     if total_minutes <= ups_minimum_minutes:
-                        logger.warning(f"UPS battery critical! Total minutes ({total_minutes}) <= threshold ({ups_minimum_minutes})")
+                        self.consecutive_low_readings += 1
+                        logger.warning(f"UPS battery critical! Total minutes ({total_minutes}) <= threshold ({ups_minimum_minutes}) - consecutive reading {self.consecutive_low_readings}/{self.REQUIRED_LOW_READINGS}")
                         
-                        # Get client history to fetch seconds_to_shutdown for each client
-                        client_history = self.get_client_history()
+                        # Only trigger shutdown after REQUIRED_LOW_READINGS consecutive readings
+                        if self.consecutive_low_readings >= self.REQUIRED_LOW_READINGS:
+                            logger.critical(f"Shutdown threshold reached after {self.consecutive_low_readings} consecutive low readings!")
+                            
+                            # Get client history to fetch seconds_to_shutdown for each client
+                            client_history = self.get_client_history()
                         
-                        # Track maximum seconds_to_shutdown
-                        max_seconds_to_shutdown = 0
-                        
-                        with self.lock:
-                            for hostname in list(self.clients.keys()):
-                                # Find seconds_to_shutdown for this client
-                                seconds_to_shutdown = 0
-                                for client_data in client_history:
-                                    if client_data['hostname'] == hostname:
-                                        seconds_to_shutdown = client_data.get('seconds_to_shutdown', 0)
-                                        break
-                                
-                                # Track maximum value
-                                max_seconds_to_shutdown = max(max_seconds_to_shutdown, seconds_to_shutdown)
-                                
-                                # Send shutdown message to client
-                                shutdown_message = {
-                                    'type': 'shutdown',
-                                    'reason': 'low_power',
-                                    'seconds_to_shutdown': seconds_to_shutdown,
-                                    'total_minutes': total_minutes,
-                                    'timestamp': time.time()
-                                }
-                                
-                                self._send_message_to_client_unsafe(hostname, shutdown_message)
-                                logger.critical(f"Sent shutdown command to {hostname} with {seconds_to_shutdown}s delay")
-                        
-                        # After notifying all clients, shutdown this server with the maximum delay
-                        self._execute_shutdown(max_seconds_to_shutdown + 30) # Add a buffer. This code must run on the last machine to shut down
+                            # Track maximum seconds_to_shutdown
+                            max_seconds_to_shutdown = 0
+                            
+                            with self.lock:
+                                for hostname in list(self.clients.keys()):
+                                    # Find seconds_to_shutdown for this client
+                                    seconds_to_shutdown = 0
+                                    for client_data in client_history:
+                                        if client_data['hostname'] == hostname:
+                                            seconds_to_shutdown = client_data.get('seconds_to_shutdown', 0)
+                                            break
+                                    
+                                    # Track maximum value
+                                    max_seconds_to_shutdown = max(max_seconds_to_shutdown, seconds_to_shutdown)
+                                    
+                                    # Send shutdown message to client
+                                    shutdown_message = {
+                                        'type': 'shutdown',
+                                        'reason': 'low_power',
+                                        'seconds_to_shutdown': seconds_to_shutdown,
+                                        'total_minutes': total_minutes,
+                                        'timestamp': time.time()
+                                    }
+                                    
+                                    self._send_message_to_client_unsafe(hostname, shutdown_message)
+                                    logger.critical(f"Sent shutdown command to {hostname} with {seconds_to_shutdown}s delay")
+                            
+                            # After notifying all clients, shutdown this server with the maximum delay
+                            self._execute_shutdown(max_seconds_to_shutdown + 30) # Add a buffer. This code must run on the last machine to shut down
 
                     else:
+                        # Reset consecutive low readings counter when above threshold
+                        if self.consecutive_low_readings > 0:
+                            logger.info(f"UPS battery recovered - resetting consecutive low readings counter (was {self.consecutive_low_readings})")
+                            self.consecutive_low_readings = 0
+                        
                         # Broadcast normal status to all connected clients
                         message = {
                             'type': 'ups_status',
