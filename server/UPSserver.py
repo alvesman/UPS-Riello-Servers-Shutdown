@@ -191,6 +191,24 @@ class UPSServer:
                 VALUES ('UPS_minimum_minutes', '15')
             ''')
             
+            # Insert default pfSense SSH username if not exists
+            cursor.execute('''
+                INSERT OR IGNORE INTO configuration (key, value)
+                VALUES ('pfsense_ssh_username', 'admin')
+            ''')
+            
+            # Insert default pfSense SSH IP address if not exists
+            cursor.execute('''
+                INSERT OR IGNORE INTO configuration (key, value)
+                VALUES ('pfsense_ssh_ip', '192.168.155.1')
+            ''')
+            
+            # Insert default pfSense SSH key path if not exists
+            cursor.execute('''
+                INSERT OR IGNORE INTO configuration (key, value)
+                VALUES ('pfsense_ssh_key_path', '/root/.ssh/pfsense_id_rsa')
+            ''')
+            
             # Insert default shutdown_issued flag if not exists
             # This flag is set to 'true' just before issuing a shutdown command
             # and is used to detect if we're recovering from a shutdown
@@ -832,11 +850,21 @@ class UPSServer:
             # Wait for the specified delay
             time.sleep(seconds_to_shutdown)
 
-            try:
-                logger.critical("pfSense shutdown using ssh. Assuming running as root, no sudo needed.")
-                subprocess.run(['ssh', '-i', '/root/.ssh/pfsense_id_rsa', 'admin@192.168.155.1', '/sbin/shutdown -p now'], check=True)
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to execute pfSense shutdown via SSH: {e}")
+            # Get pfSense SSH configuration from database
+            pfsense_username = self.get_config_value('pfsense_ssh_username', 'admin')
+            pfsense_ip = self.get_config_value('pfsense_ssh_ip', '192.168.155.1')
+            pfsense_key_path = self.get_config_value('pfsense_ssh_key_path', '/root/.ssh/pfsense_id_rsa')
+            
+            # Guard: skip pfSense shutdown if any SSH parameter is empty
+            if not pfsense_username or not pfsense_ip or not pfsense_key_path:
+                logger.warning("Skipping pfSense SSH shutdown - one or more configuration values are empty: "
+                              f"username='{pfsense_username}', ip='{pfsense_ip}', key_path='{pfsense_key_path}'")
+            else:
+                try:
+                    logger.critical(f"pfSense shutdown using ssh to {pfsense_username}@{pfsense_ip} with key {pfsense_key_path}. Assuming running as root, no sudo needed.")
+                    subprocess.run(['ssh', '-i', pfsense_key_path, f'{pfsense_username}@{pfsense_ip}', '/sbin/shutdown', '-p', 'now'], check=True)
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to execute pfSense shutdown via SSH: {e}")
             
             logger.critical("Executing system shutdown NOW!")
             
