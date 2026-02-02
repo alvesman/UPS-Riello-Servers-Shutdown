@@ -41,10 +41,61 @@ The system consists of three main components:
 ## Key Features
 
 - **Priority-based shutdown**: Each client can have a custom delay (0-N seconds), allowing critical services to shut down last
+- **pfSense/OPNsense support**: Optionally shuts down a pfSense or OPNsense firewall via SSH before the server itself shuts down
 - **Automatic discovery**: Clients find the server without manual IP configuration
 - **Resilient connections**: Heartbeat monitoring, automatic reconnection, and timeout handling
+- **Recovery mode**: Prevents immediate re-triggering of shutdown after power restoration
 - **Logging**: Separate stdout/stderr logging integrated with systemd
 - **Service integration**: Includes systemd service files and logrotate configurations
+
+## Configuration
+
+All configuration is managed via the web dashboard and persisted in SQLite database (`ups_clients.db`).
+
+### UPS Settings
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `UPS_URL` | URL to the Riello UPS JSON API endpoint | `https://192.168.155.55/json/live_data.json` |
+| `UPS_minimum_minutes` | Battery threshold (minutes) to trigger shutdown | `15` |
+
+### pfSense/OPNsense SSH Shutdown (Optional)
+The server can shut down a pfSense or OPNsense firewall via SSH before shutting itself down. This ensures the firewall is gracefully stopped.
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `pfsense_ssh_username` | SSH username for pfSense | `admin` |
+| `pfsense_ssh_ip` | IP address of pfSense | `192.168.155.1` |
+| `pfsense_ssh_key_path` | Path to SSH private key | `/root/.ssh/pfsense_id_rsa` |
+
+**Note:** If any of these three settings is empty, the pfSense SSH shutdown will be skipped (with a warning logged).
+
+#### pfSense SSH Setup
+To enable pfSense shutdown, you need to:
+
+1. **Generate an SSH key pair** on the UPS server (as root):
+   ```bash
+   sudo ssh-keygen -t rsa -b 4096 -f /root/.ssh/pfsense_id_rsa -N ""
+   ```
+
+2. **Copy the public key to pfSense**:
+   - Log into pfSense web interface
+   - Go to System → User Manager → Edit admin user
+   - Paste the contents of `/root/.ssh/pfsense_id_rsa.pub` into "Authorized SSH Keys"
+   - Save
+
+3. **Enable SSH on pfSense**:
+   - Go to System → Advanced → Admin Access
+   - Enable "Secure Shell"
+   - Save
+
+4. **Test the connection** (as root on the UPS server):
+   ```bash
+   ssh -i /root/.ssh/pfsense_id_rsa admin@192.168.155.1 "echo OK"
+   ```
+
+5. **Configure via Dashboard**: Update the settings in the Configuration tab if your values differ from the defaults.
+
+To disable pfSense shutdown, simply clear any of the three SSH settings in the dashboard.
 
 ## Workflow
 
