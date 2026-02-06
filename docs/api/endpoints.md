@@ -22,6 +22,7 @@ python3 UPSdashboard.py 9000  # Run on port 9000
 | GET | `/api/clients` | List all client connections |
 | GET | `/api/config` | List all configuration values |
 | GET | `/api/ups_status` | Get current UPS battery status |
+| GET | `/api/ups_full_status` | Get complete UPS status with all metrics |
 | POST | `/api/update_shutdown` | Update client shutdown delay |
 | POST | `/api/update_config` | Update configuration value |
 
@@ -182,6 +183,118 @@ Returns the current UPS battery status by querying the UPS directly.
 **Example**:
 ```bash
 curl http://localhost:8080/api/ups_status
+```
+
+---
+
+### GET /api/ups_full_status
+
+Returns complete, detailed UPS status with all available metrics from the live_data.json endpoint. This includes 3-phase input, bypass, output measurements, battery status, environmental data, and system alarms.
+
+**Response**: JSON (Success)
+
+```json
+{
+    "current_date": "06 Feb 08:27 WET 2026",
+    "vin1": 227,
+    "vin2": 227,
+    "vin3": 228,
+    "fin": 500,
+    "ain1": 73,
+    "ain2": 73,
+    "ain3": 70,
+    "vbyp1": 227,
+    "vbyp2": 226,
+    "vbyp3": 227,
+    "fbyp": 500,
+    "vout1": 230,
+    "vout2": 229,
+    "vout3": 229,
+    "fout": 500,
+    "aout1": 52,
+    "aout2": 52,
+    "aout3": 72,
+    "apkout1": 100,
+    "apkout2": 90,
+    "apkout3": 123,
+    "w1": 944,
+    "w2": 924,
+    "w3": 1456,
+    "load1": 6,
+    "load2": 6,
+    "load3": 9,
+    "vbatp": 2733,
+    "vbatn": 2729,
+    "abatp": -2,
+    "abatn": -1,
+    "autonomy": 475,
+    "batcap": 100,
+    "KWh": 0,
+    "tsys": 27.0,
+    "tbatext": 24.5,
+    "alarms": [],
+    "system_status": {
+        "status": "LOAD ON INVERTER",
+        "status_color": "#00AEF0",
+        "input_color": "#00AEF0",
+        "bypass_color": "#00AEF0",
+        "system_color": "#00AEF0",
+        "battery_color": "#00AEF0",
+        "output_color": "#00AEF0",
+        "sinottico": 5
+    }
+}
+```
+
+**Response**: JSON (Error)
+
+```json
+{
+    "error": "Unable to fetch full UPS status"
+}
+```
+
+**Response Fields**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `current_date` | string | Timestamp from UPS |
+| `vin1`, `vin2`, `vin3` | integer | Input voltage per phase (Volts) |
+| `fin` | integer | Input frequency (decihertz, divide by 10 for Hz) |
+| `ain1`, `ain2`, `ain3` | integer | Input current per phase (Amperes) |
+| `vbyp1`, `vbyp2`, `vbyp3` | integer | Bypass voltage per phase (Volts) |
+| `fbyp` | integer | Bypass frequency (decihertz) |
+| `vout1`, `vout2`, `vout3` | integer | Output voltage per phase (Volts) |
+| `fout` | integer | Output frequency (decihertz) |
+| `aout1`, `aout2`, `aout3` | integer | Output current per phase (Amperes) |
+| `apkout1`, `apkout2`, `apkout3` | integer | Peak output current per phase (Amperes) |
+| `w1`, `w2`, `w3` | integer | Active power per phase (Watts) |
+| `load1`, `load2`, `load3` | integer | Load percentage per phase (0-100) |
+| `vbatp`, `vbatn` | integer | Battery bus voltage (decivolts, divide by 10) |
+| `abatp`, `abatn` | integer | Battery current (Amperes, negative = charging) |
+| `autonomy` | integer | Estimated runtime in minutes |
+| `batcap` | integer | Battery capacity percentage (0-100) |
+| `KWh` | integer | Energy consumption in kilowatt-hours |
+| `tsys` | float | System temperature (Celsius) |
+| `tbatext` | float | Battery external temperature (Celsius) |
+| `alarms` | array | List of active alarm strings (empty if none) |
+| `system_status` | object | System status details with colors and mode |
+
+**Status Codes**:
+| Code | Description |
+|------|-------------|
+| 200 | Success |
+| 500 | Unable to fetch full UPS status |
+
+**Usage Notes**:
+- This endpoint is used by the System Status tab in the dashboard
+- Frequency values are in decihertz (multiply by 0.1 to get Hz)
+- Battery voltages are in decivolts (multiply by 0.1 to get V)
+- Negative battery current indicates charging; positive indicates discharging
+
+**Example**:
+```bash
+curl http://localhost:8080/api/ups_full_status
 ```
 
 ---
