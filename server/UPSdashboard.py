@@ -8,17 +8,66 @@ Default port: 8080
 import sqlite3
 import json
 import os
+import secrets
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime
+from http.cookies import SimpleCookie
 
 # Configuration
 DB_PATH = 'ups_clients.db'
 DEFAULT_PORT = 8080
+DEFAULT_ACCESS_CODE = 'ups-riello-r2ut'
+
+# Session storage (in production, use Redis or similar)
+active_sessions = set()
 
 def get_db_connection():
     """Create a database connection."""
     return sqlite3.connect(DB_PATH)
+
+def initialize_access_code():
+    """Initialize the access_code in the database if it doesn't exist."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR IGNORE INTO configuration (key, value)
+            VALUES ('access_code', ?)
+        """, (DEFAULT_ACCESS_CODE,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing access code: {e}")
+
+def verify_access_code(code: str) -> bool:
+    """Verify if the provided code matches the stored access code."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM configuration WHERE key = 'access_code'")
+        result = cursor.fetchone()
+        conn.close()
+        if result and result[0] == code:
+            return True
+        return False
+    except Exception as e:
+        print(f"Error verifying access code: {e}")
+        return False
+
+def create_session() -> str:
+    """Create a new session token."""
+    token = secrets.token_urlsafe(32)
+    active_sessions.add(token)
+    return token
+
+def validate_session(token: str) -> bool:
+    """Validate a session token."""
+    return token in active_sessions
+
+def destroy_session(token: str):
+    """Destroy a session."""
+    active_sessions.discard(token)
 
 def load_client_connections():
     """Load all client connections from the database."""
@@ -176,9 +225,39 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """Override to customize logging."""
         print(f"[{self.log_date_time_string()}] {format % args}")
     
+    def get_session_token(self) -> str:
+        """Extract session token from cookies."""
+        cookie_header = self.headers.get('Cookie')
+        if cookie_header:
+            cookie = SimpleCookie()
+            cookie.load(cookie_header)
+            if 'session_token' in cookie:
+                return cookie['session_token'].value
+        return None
+    
+    def is_authenticated(self) -> bool:
+        """Check if the request is authenticated."""
+        token = self.get_session_token()
+        return token and validate_session(token)
+    
     def do_GET(self):
         """Handle GET requests."""
         parsed_path = urlparse(self.path)
+        
+        # Login page is always accessible
+        if parsed_path.path == '/login':
+            self.serve_login_page()
+            return
+        
+        # Logout endpoint
+        if parsed_path.path == '/logout':
+            self.handle_logout()
+            return
+        
+        # Check authentication for all other routes
+        if not self.is_authenticated():
+            self.redirect_to_login()
+            return
         
         if parsed_path.path == '/' or parsed_path.path == '/index.html':
             self.serve_dashboard()
@@ -199,6 +278,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length).decode('utf-8')
         
+        # Login endpoint is always accessible
+        if parsed_path.path == '/api/login':
+            try:
+                data = json.loads(post_data)
+                self.handle_login(data)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+            return
+        
+        # Check authentication for all other POST routes
+        if not self.is_authenticated():
+            self.send_json_response({"success": False, "error": "Unauthorized"}, 401)
+            return
+        
         try:
             data = json.loads(post_data)
         except json.JSONDecodeError:
@@ -211,6 +304,52 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.handle_update_config(data)
         else:
             self.send_error(404, "Endpoint not found")
+    
+    def redirect_to_login(self):
+        """Redirect to login page."""
+        self.send_response(302)
+        self.send_header('Location', '/login')
+        self.end_headers()
+    
+    def handle_logout(self):
+        """Handle logout request."""
+        token = self.get_session_token()
+        if token:
+            destroy_session(token)
+        
+        self.send_response(302)
+        self.send_header('Location', '/login')
+        self.send_header('Set-Cookie', 'session_token=; Path=/; Max-Age=0')
+        self.end_headers()
+    
+    def handle_login(self, data):
+        """Handle login request."""
+        code = data.get('code')
+        
+        if not code:
+            self.send_json_response({"success": False, "error": "Code is required"}, 400)
+            return
+        
+        if verify_access_code(code):
+            token = create_session()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Set-Cookie', f'session_token={token}; Path=/; HttpOnly; Max-Age=86400')
+            self.end_headers()
+            response = json.dumps({"success": True, "message": "Login successful"})
+            self.wfile.write(response.encode('utf-8'))
+        else:
+            self.send_json_response({"success": False, "error": "Invalid access code"}, 401)
+    
+    def serve_login_page(self):
+        """Serve the login page."""
+        html = self.generate_login_html()
+        
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', len(html.encode('utf-8')))
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
     
     def serve_dashboard(self):
         """Serve the main dashboard HTML page."""
@@ -293,6 +432,169 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json_data.encode('utf-8'))
     
+    def generate_login_html(self):
+        """Generate the login page HTML."""
+        return """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔌 Login - UPS Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            background: #1e1e2e;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            border: 1px solid #2a2a3e;
+            max-width: 400px;
+            width: 100%;
+            padding: 40px;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .login-header h1 {
+            color: #ffffff;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        .login-header p {
+            color: #a1a1aa;
+            font-size: 0.95em;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            color: #d4d4d8;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            background: #27293d;
+            border: 1px solid #3f3f55;
+            border-radius: 6px;
+            color: #e4e4e7;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .login-btn:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        .error-message {
+            background: #dc2626;
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            font-size: 0.9em;
+        }
+        .error-message.show {
+            display: block;
+            animation: shake 0.3s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>🔌 UPS Dashboard</h1>
+            <p>Please enter your access code</p>
+        </div>
+        
+        <div id="errorMessage" class="error-message"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="accessCode">Access Code</label>
+                <input type="password" id="accessCode" name="code" placeholder="Enter access code" required autofocus>
+            </div>
+            <button type="submit" class="login-btn">Login</button>
+        </form>
+    </div>
+    
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const code = document.getElementById('accessCode').value;
+            const errorMessage = document.getElementById('errorMessage');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ code: code })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    errorMessage.textContent = data.error || 'Login failed';
+                    errorMessage.classList.add('show');
+                    document.getElementById('accessCode').value = '';
+                    setTimeout(() => {
+                        errorMessage.classList.remove('show');
+                    }, 3000);
+                }
+            } catch (error) {
+                errorMessage.textContent = 'An error occurred. Please try again.';
+                errorMessage.classList.add('show');
+                setTimeout(() => {
+                    errorMessage.classList.remove('show');
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>"""
+    
     def generate_error_page(self, title, message):
         """Generate an error page."""
         return f"""<!DOCTYPE html>
@@ -347,6 +649,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             padding: 30px;
             text-align: center;
             border-bottom: 2px solid #3b82f6;
+            position: relative;
         }
         .header h1 {
             font-size: 2.5em;
@@ -355,6 +658,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
         }
         .header p {
             color: #d4d4d8;
+        }
+        .logout-btn {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            padding: 8px 16px;
+            background: rgba(220, 38, 38, 0.2);
+            color: #fca5a5;
+            border: 1px solid #dc2626;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .logout-btn:hover {
+            background: #dc2626;
+            color: white;
         }
         .nav {
             display: flex;
@@ -761,6 +1082,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         <div class="header">
             <h1>🔌 UPS Server Dashboard</h1>
             <p id="header-subtitle">Monitor and configure UPS client connections</p>
+            <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
         
         <div class="nav">
@@ -1586,6 +1908,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
             setInterval(loadUPSStatus, 30000);
         }
         
+        // Logout function
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                window.location.href = '/logout';
+            }
+        }
+        
         // Start the dashboard
         init();
     </script>
@@ -1594,10 +1923,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 def run_server(port=DEFAULT_PORT):
     """Run the HTTP server."""
+    # Initialize access code in database
+    initialize_access_code()
+    
     server_address = ('', port)
     httpd = HTTPServer(server_address, DashboardHandler)
     print(f"🔌 UPS Server Dashboard running at http://localhost:{port}")
     print(f"📊 Database: {DB_PATH}")
+    print(f"🔑 Access authentication enabled")
     print("Press Ctrl+C to stop the server")
     
     try:
