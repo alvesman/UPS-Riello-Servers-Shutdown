@@ -683,11 +683,31 @@ class DashboardHandler(BaseHTTPRequestHandler):
             font-size: 24px;
             font-weight: 700;
             color: #60a5fa;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
         }
         .phase-card-unit {
-            font-size: 11px;
-            color: #71717a;
+            font-size: 14px;
+            font-weight: 700;
+            color: #60a5fa !important;
+        }
+        .phase-card-measurements {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px 15px;
+            text-align: left;
+            margin-top: 10px;
+        }
+        .phase-card-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #a1a1aa;
+            text-align: right;
+        }
+        .phase-card-value-sm {
+            font-size: 14px;
+            font-weight: 700;
+            color: #60a5fa;
+            text-align: left;
         }
         .info-grid {
             display: grid;
@@ -1349,26 +1369,44 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     <div class="phase-card">
                         <div class="phase-card-title">Phase 1</div>
                         <div class="phase-card-value">${formatVoltage(data.vout1)}</div>
-                        <div class="phase-card-unit">Current: ${formatCurrent(data.aout1)}</div>
-                        <div class="phase-card-unit">Power: ${formatPower(data.w1)}</div>
-                        <div class="phase-card-unit">Load: ${data.load1 || 0}%</div>
-                        <div class="phase-card-unit">Peak: ${formatCurrent(data.apkout1)}</div>
+                        <div class="phase-card-measurements">
+                            <div class="phase-card-label">Current:</div>
+                            <div class="phase-card-value-sm">${formatCurrent(data.aout1)}</div>
+                            <div class="phase-card-label">Power:</div>
+                            <div class="phase-card-value-sm">${formatPower(data.w1)}</div>
+                            <div class="phase-card-label">Load:</div>
+                            <div class="phase-card-value-sm">${data.load1 || 0}%</div>
+                            <div class="phase-card-label">Peak:</div>
+                            <div class="phase-card-value-sm">${formatCurrent(data.apkout1)}</div>
+                        </div>
                     </div>
                     <div class="phase-card">
                         <div class="phase-card-title">Phase 2</div>
                         <div class="phase-card-value">${formatVoltage(data.vout2)}</div>
-                        <div class="phase-card-unit">Current: ${formatCurrent(data.aout2)}</div>
-                        <div class="phase-card-unit">Power: ${formatPower(data.w2)}</div>
-                        <div class="phase-card-unit">Load: ${data.load2 || 0}%</div>
-                        <div class="phase-card-unit">Peak: ${formatCurrent(data.apkout2)}</div>
+                        <div class="phase-card-measurements">
+                            <div class="phase-card-label">Current:</div>
+                            <div class="phase-card-value-sm">${formatCurrent(data.aout2)}</div>
+                            <div class="phase-card-label">Power:</div>
+                            <div class="phase-card-value-sm">${formatPower(data.w2)}</div>
+                            <div class="phase-card-label">Load:</div>
+                            <div class="phase-card-value-sm">${data.load2 || 0}%</div>
+                            <div class="phase-card-label">Peak:</div>
+                            <div class="phase-card-value-sm">${formatCurrent(data.apkout2)}</div>
+                        </div>
                     </div>
                     <div class="phase-card">
                         <div class="phase-card-title">Phase 3</div>
                         <div class="phase-card-value">${formatVoltage(data.vout3)}</div>
-                        <div class="phase-card-unit">Current: ${formatCurrent(data.aout3)}</div>
-                        <div class="phase-card-unit">Power: ${formatPower(data.w3)}</div>
-                        <div class="phase-card-unit">Load: ${data.load3 || 0}%</div>
-                        <div class="phase-card-unit">Peak: ${formatCurrent(data.apkout3)}</div>
+                        <div class="phase-card-measurements">
+                            <div class="phase-card-label">Current:</div>
+                            <div class="phase-card-value-sm">${formatCurrent(data.aout3)}</div>
+                            <div class="phase-card-label">Power:</div>
+                            <div class="phase-card-value-sm">${formatPower(data.w3)}</div>
+                            <div class="phase-card-label">Load:</div>
+                            <div class="phase-card-value-sm">${data.load3 || 0}%</div>
+                            <div class="phase-card-label">Peak:</div>
+                            <div class="phase-card-value-sm">${formatCurrent(data.apkout3)}</div>
+                        </div>
                     </div>
                 </div>
                 
