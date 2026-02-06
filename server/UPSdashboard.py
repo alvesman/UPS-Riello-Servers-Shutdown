@@ -135,6 +135,40 @@ def get_ups_status():
         print(f"Error getting UPS status: {e}")
         return None
 
+def get_ups_full_status():
+    """Get complete UPS status with all fields from live_data.json."""
+    try:
+        import urllib.request
+        import ssl
+        
+        # Get UPS URL from configuration
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM configuration WHERE key = 'UPS_URL'")
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return None
+        
+        ups_url = result[0]
+        
+        # Create SSL context that doesn't verify certificates
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        # Fetch UPS data
+        request = urllib.request.Request(ups_url)
+        with urllib.request.urlopen(request, context=ssl_context, timeout=5) as response:
+            data = response.read().decode('utf-8')
+            json_data = json.loads(data)
+            return json_data
+        
+    except Exception as e:
+        print(f"Error getting full UPS status: {e}")
+        return None
+
 class DashboardHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the UPS dashboard."""
     
@@ -154,6 +188,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.serve_config_data()
         elif parsed_path.path == '/api/ups_status':
             self.serve_ups_status()
+        elif parsed_path.path == '/api/ups_full_status':
+            self.serve_ups_full_status()
         else:
             self.send_error(404, "Page not found")
     
@@ -207,6 +243,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_json_response(ups_status)
         else:
             self.send_json_response({"status": "error", "message": "Unable to fetch UPS status"}, 500)
+    
+    def serve_ups_full_status(self):
+        """Serve complete UPS status data as JSON."""
+        ups_full_status = get_ups_full_status()
+        if ups_full_status:
+            self.send_json_response(ups_full_status)
+        else:
+            self.send_json_response({"error": "Unable to fetch full UPS status"}, 500)
     
     def handle_update_shutdown(self, data):
         """Handle shutdown time update request."""
@@ -546,6 +590,150 @@ class DashboardHandler(BaseHTTPRequestHandler):
         .ups-status-badge.error {
             background: #ef4444;
         }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: linear-gradient(135deg, #27293d 0%, #2d2f41 100%);
+            border: 2px solid #3f3f55;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .status-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .status-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #3f3f55;
+        }
+        .status-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #a1a1aa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-card-icon {
+            font-size: 24px;
+        }
+        .status-card-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #e4e4e7;
+            margin-bottom: 8px;
+        }
+        .status-card-label {
+            font-size: 13px;
+            color: #71717a;
+        }
+        .status-indicator {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .status-ok {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid #10b981;
+        }
+        .status-warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+            border: 1px solid #f59e0b;
+        }
+        .status-error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid #ef4444;
+        }
+        .phase-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .phase-card {
+            background: #27293d;
+            border: 1px solid #3f3f55;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .phase-card-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #a1a1aa;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .phase-card-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #60a5fa;
+            margin-bottom: 5px;
+        }
+        .phase-card-unit {
+            font-size: 11px;
+            color: #71717a;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .info-item {
+            background: #27293d;
+            border: 1px solid #3f3f55;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .info-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #a1a1aa;
+        }
+        .info-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #e4e4e7;
+        }
+        .alarm-box {
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid #ef4444;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .alarm-box.no-alarms {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: #10b981;
+        }
+        .alarm-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #ef4444;
+        }
+        .alarm-box.no-alarms .alarm-title {
+            color: #10b981;
+        }
     </style>
 </head>
 <body>
@@ -556,7 +744,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         </div>
         
         <div class="nav">
-            <button class="nav-btn active" onclick="showSection('clients')">
+            <button class="nav-btn active" onclick="showSection('system')">
+                ⚡ System Status
+            </button>
+            <button class="nav-btn" onclick="showSection('clients')">
                 📡 Client Connections
             </button>
             <button class="nav-btn" onclick="showSection('config')">
@@ -568,7 +759,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             <div id="alert-container"></div>
             
             <!-- Client Connections Section -->
-            <div id="clients-section" class="section active">
+            <div id="clients-section" class="section">
                 <div class="section-header">
                     <h2>Client Connections</h2>
                     <button class="btn btn-primary" onclick="refreshData()">
@@ -642,6 +833,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     </div>
                 </div>
             </div>
+            
+            <!-- System Status Section -->
+            <div id="system-section" class="section active">
+                <div class="section-header">
+                    <h2>UPS System Status</h2>
+                    <button class="btn btn-primary" onclick="refreshSystemStatus()">
+                        🔄 Refresh
+                    </button>
+                </div>
+                
+                <div id="system-content">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading UPS system data...</p>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div class="footer">
@@ -652,7 +860,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     <script>
         let clientsData = [];
         let configData = [];
-        let currentSection = 'clients';
+        let currentSection = 'system';
         let upsStatusData = null;
         
         // Convert minutes to hours and minutes format
@@ -701,12 +909,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
             document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             
-            if (section === 'clients') {
-                document.getElementById('clients-section').classList.add('active');
+            if (section === 'system') {
+                document.getElementById('system-section').classList.add('active');
                 document.querySelectorAll('.nav-btn')[0].classList.add('active');
-            } else {
-                document.getElementById('config-section').classList.add('active');
+            } else if (section === 'clients') {
+                document.getElementById('clients-section').classList.add('active');
                 document.querySelectorAll('.nav-btn')[1].classList.add('active');
+            } else if (section === 'config') {
+                document.getElementById('config-section').classList.add('active');
+                document.querySelectorAll('.nav-btn')[2].classList.add('active');
             }
         }
         
@@ -918,6 +1129,398 @@ class DashboardHandler(BaseHTTPRequestHandler):
         
         // Refresh current section data
         function refreshData() {
+            if (currentSection === 'system') {
+                loadSystemStatus();
+            } else if (currentSection === 'clients') {
+                loadClients();
+            } else if (currentSection === 'config') {
+                loadConfig();
+            }
+        }
+        
+        // Load full system status
+        async function loadSystemStatus() {
+            try {
+                const response = await fetch('/api/ups_full_status');
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('system-content').innerHTML = 
+                        '<div class="alert alert-error">Error loading system status: ' + data.error + '</div>';
+                    return;
+                }
+                
+                renderSystemStatus(data);
+            } catch (error) {
+                document.getElementById('system-content').innerHTML = 
+                    '<div class="alert alert-error">Error loading system status: ' + error.message + '</div>';
+            }
+        }
+        
+        // Refresh system status only
+        function refreshSystemStatus() {
+            loadSystemStatus();
+        }
+        
+        // Format frequency (divide by 10 to get Hz)
+        function formatFrequency(value) {
+            return value ? (value / 10).toFixed(1) + ' Hz' : 'N/A';
+        }
+        
+        // Format voltage
+        function formatVoltage(value) {
+            return value ? value + ' V' : 'N/A';
+        }
+        
+        // Format current
+        function formatCurrent(value) {
+            return value ? value + ' A' : 'N/A';
+        }
+        
+        // Format power
+        function formatPower(value) {
+            return value ? value + ' W' : 'N/A';
+        }
+        
+        // Format battery voltage (divide by 10)
+        function formatBatteryVoltage(value) {
+            return value ? (value / 10).toFixed(1) + ' V' : 'N/A';
+        }
+        
+        // Format temperature
+        function formatTemperature(value) {
+            return value ? value + ' °C' : 'N/A';
+        }
+        
+        // Get status badge class based on value
+        function getStatusClass(status) {
+            if (!status) return 'status-error';
+            const statusUpper = status.toUpperCase();
+            if (statusUpper.includes('INVERTER') || statusUpper.includes('NORMAL')) return 'status-ok';
+            if (statusUpper.includes('BYPASS')) return 'status-warning';
+            return 'status-error';
+        }
+        
+        // Get battery status class
+        function getBatteryClass(capacity) {
+            if (capacity >= 80) return 'status-ok';
+            if (capacity >= 50) return 'status-warning';
+            return 'status-error';
+        }
+        
+        // Get load status class
+        function getLoadClass(load) {
+            if (load <= 70) return 'status-ok';
+            if (load <= 90) return 'status-warning';
+            return 'status-error';
+        }
+        
+        // Render system status
+        function renderSystemStatus(data) {
+            const content = document.getElementById('system-content');
+            
+            const statusClass = getStatusClass(data.system_status?.status || '');
+            const batteryClass = getBatteryClass(data.batcap || 0);
+            const maxLoad = Math.max(data.load1 || 0, data.load2 || 0, data.load3 || 0);
+            const loadClass = getLoadClass(maxLoad);
+            
+            let html = `
+                <!-- Overview Cards -->
+                <div class="status-grid">
+                    <div class="status-card">
+                        <div class="status-card-header">
+                            <span class="status-card-title">System Status</span>
+                            <span class="status-card-icon">⚡</span>
+                        </div>
+                        <div class="status-card-value">${data.system_status?.status || 'Unknown'}</div>
+                        <div class="status-card-label">Current Operating Mode</div>
+                        <span class="status-indicator ${statusClass}">
+                            ${data.system_status?.status || 'Unknown'}
+                        </span>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-card-header">
+                            <span class="status-card-title">Battery Capacity</span>
+                            <span class="status-card-icon">🔋</span>
+                        </div>
+                        <div class="status-card-value">${data.batcap || 0}%</div>
+                        <div class="status-card-label">Autonomy: ${formatTime(data.autonomy || 0)}</div>
+                        <span class="status-indicator ${batteryClass}">
+                            ${data.batcap >= 80 ? 'Healthy' : data.batcap >= 50 ? 'Fair' : 'Low'}
+                        </span>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-card-header">
+                            <span class="status-card-title">Load Status</span>
+                            <span class="status-card-icon">📊</span>
+                        </div>
+                        <div class="status-card-value">${maxLoad}%</div>
+                        <div class="status-card-label">Maximum Phase Load</div>
+                        <span class="status-indicator ${loadClass}">
+                            ${maxLoad <= 70 ? 'Normal' : maxLoad <= 90 ? 'High' : 'Critical'}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Alarms -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">🚨 System Alarms</h3>
+            `;
+            
+            if (data.alarms && data.alarms.length > 0) {
+                html += '<div class="alarm-box">';
+                html += '<div class="alarm-title">⚠️ Active Alarms</div>';
+                data.alarms.forEach(alarm => {
+                    html += `<div style="color: #fca5a5; font-size: 14px; margin-top: 5px;">• ${alarm}</div>`;
+                });
+                html += '</div>';
+            } else {
+                html += '<div class="alarm-box no-alarms">';
+                html += '<div class="alarm-title">✅ No Active Alarms</div>';
+                html += '<div style="color: #86efac; font-size: 14px;">System operating normally</div>';
+                html += '</div>';
+            }
+            
+            html += `
+                
+                <!-- Input Measurements -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">⚡ Input Measurements (Mains)</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Input Frequency</span>
+                        <span class="info-value">${formatFrequency(data.fin)}</span>
+                    </div>
+                </div>
+                <div class="phase-grid">
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 1</div>
+                        <div class="phase-card-value">${formatVoltage(data.vin1)}</div>
+                        <div class="phase-card-unit">Current: ${formatCurrent(data.ain1)}</div>
+                    </div>
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 2</div>
+                        <div class="phase-card-value">${formatVoltage(data.vin2)}</div>
+                        <div class="phase-card-unit">Current: ${formatCurrent(data.ain2)}</div>
+                    </div>
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 3</div>
+                        <div class="phase-card-value">${formatVoltage(data.vin3)}</div>
+                        <div class="phase-card-unit">Current: ${formatCurrent(data.ain3)}</div>
+                    </div>
+                </div>
+                
+                <!-- Bypass Line -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">🔄 Bypass Line</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Bypass Frequency</span>
+                        <span class="info-value">${formatFrequency(data.fbyp)}</span>
+                    </div>
+                </div>
+                <div class="phase-grid">
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 1</div>
+                        <div class="phase-card-value">${formatVoltage(data.vbyp1)}</div>
+                    </div>
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 2</div>
+                        <div class="phase-card-value">${formatVoltage(data.vbyp2)}</div>
+                    </div>
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 3</div>
+                        <div class="phase-card-value">${formatVoltage(data.vbyp3)}</div>
+                    </div>
+                </div>
+                
+                <!-- Output Measurements -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">📤 Output Measurements (Load)</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Output Frequency</span>
+                        <span class="info-value">${formatFrequency(data.fout)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Total Power</span>
+                        <span class="info-value">${(data.w1 || 0) + (data.w2 || 0) + (data.w3 || 0)} W</span>
+                    </div>
+                </div>
+                <div class="phase-grid">
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 1</div>
+                        <div class="phase-card-value">${formatVoltage(data.vout1)}</div>
+                        <div class="phase-card-unit">Current: ${formatCurrent(data.aout1)}</div>
+                        <div class="phase-card-unit">Power: ${formatPower(data.w1)}</div>
+                        <div class="phase-card-unit">Load: ${data.load1 || 0}%</div>
+                        <div class="phase-card-unit">Peak: ${formatCurrent(data.apkout1)}</div>
+                    </div>
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 2</div>
+                        <div class="phase-card-value">${formatVoltage(data.vout2)}</div>
+                        <div class="phase-card-unit">Current: ${formatCurrent(data.aout2)}</div>
+                        <div class="phase-card-unit">Power: ${formatPower(data.w2)}</div>
+                        <div class="phase-card-unit">Load: ${data.load2 || 0}%</div>
+                        <div class="phase-card-unit">Peak: ${formatCurrent(data.apkout2)}</div>
+                    </div>
+                    <div class="phase-card">
+                        <div class="phase-card-title">Phase 3</div>
+                        <div class="phase-card-value">${formatVoltage(data.vout3)}</div>
+                        <div class="phase-card-unit">Current: ${formatCurrent(data.aout3)}</div>
+                        <div class="phase-card-unit">Power: ${formatPower(data.w3)}</div>
+                        <div class="phase-card-unit">Load: ${data.load3 || 0}%</div>
+                        <div class="phase-card-unit">Peak: ${formatCurrent(data.apkout3)}</div>
+                    </div>
+                </div>
+                
+                <!-- Battery Status -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">🔋 Battery Status</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Battery Capacity</span>
+                        <span class="info-value">${data.batcap || 0}%</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Autonomy Time</span>
+                        <span class="info-value">${formatTime(data.autonomy || 0)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Positive Bus Voltage</span>
+                        <span class="info-value">${formatBatteryVoltage(data.vbatp)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Negative Bus Voltage</span>
+                        <span class="info-value">${formatBatteryVoltage(data.vbatn)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Positive Current</span>
+                        <span class="info-value">${formatCurrent(data.abatp)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Negative Current</span>
+                        <span class="info-value">${formatCurrent(data.abatn)}</span>
+                    </div>
+                </div>
+                
+                <!-- Environment & System -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">🌡️ Environment & Temperatures</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">System Temperature</span>
+                        <span class="info-value">${formatTemperature(data.tsys)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Battery Temperature</span>
+                        <span class="info-value">${formatTemperature(data.tbatext)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">KWh Counter</span>
+                        <span class="info-value">${data.KWh || 0} kWh</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Last Update</span>
+                        <span class="info-value">${data.current_date || 'N/A'}</span>
+                    </div>
+                </div>
+                
+                <!-- Power Summary Table -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">📊 Power Summary</h3>
+            `;
+            
+            // Calculate power metrics
+            const v1 = data.vout1 || 0;
+            const v2 = data.vout2 || 0;
+            const v3 = data.vout3 || 0;
+            const a1 = data.aout1 || 0;
+            const a2 = data.aout2 || 0;
+            const a3 = data.aout3 || 0;
+            const w1 = data.w1 || 0;
+            const w2 = data.w2 || 0;
+            const w3 = data.w3 || 0;
+            
+            // Apparent Power (kVA) = V × A / 1000
+            const kva1 = (v1 * a1 / 1000).toFixed(2);
+            const kva2 = (v2 * a2 / 1000).toFixed(2);
+            const kva3 = (v3 * a3 / 1000).toFixed(2);
+            const kvaTotal = (parseFloat(kva1) + parseFloat(kva2) + parseFloat(kva3)).toFixed(2);
+            
+            // Active Power (kW) = W / 1000
+            const kw1 = (w1 / 1000).toFixed(2);
+            const kw2 = (w2 / 1000).toFixed(2);
+            const kw3 = (w3 / 1000).toFixed(2);
+            const kwTotal = (parseFloat(kw1) + parseFloat(kw2) + parseFloat(kw3)).toFixed(2);
+            
+            // Power Factor = Active Power / Apparent Power
+            const pf1 = parseFloat(kva1) > 0 ? (parseFloat(kw1) / parseFloat(kva1)).toFixed(2) : '0.00';
+            const pf2 = parseFloat(kva2) > 0 ? (parseFloat(kw2) / parseFloat(kva2)).toFixed(2) : '0.00';
+            const pf3 = parseFloat(kva3) > 0 ? (parseFloat(kw3) / parseFloat(kva3)).toFixed(2) : '0.00';
+            const pfTotal = parseFloat(kvaTotal) > 0 ? (parseFloat(kwTotal) / parseFloat(kvaTotal)).toFixed(2) : '0.00';
+            
+            // Average load
+            const avgLoad = Math.round(((data.load1 || 0) + (data.load2 || 0) + (data.load3 || 0)) / 3);
+            
+            html += `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Phase 1 (L1)</th>
+                            <th>Phase 2 (L2)</th>
+                            <th>Phase 3 (L3)</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Voltage</strong></td>
+                            <td>${v1} V</td>
+                            <td>${v2} V</td>
+                            <td>${v3} V</td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Current</strong></td>
+                            <td>${a1} A</td>
+                            <td>${a2} A</td>
+                            <td>${a3} A</td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Apparent Power (kVA)</strong></td>
+                            <td>${kva1} kVA</td>
+                            <td>${kva2} kVA</td>
+                            <td>${kva3} kVA</td>
+                            <td><strong>${kvaTotal} kVA</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Active Power (kW)</strong></td>
+                            <td>${kw1} kW</td>
+                            <td>${kw2} kW</td>
+                            <td>${kw3} kW</td>
+                            <td><strong>${kwTotal} kW</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Power Factor (PF)</strong></td>
+                            <td>${pf1}</td>
+                            <td>${pf2}</td>
+                            <td>${pf3}</td>
+                            <td><strong>${pfTotal}</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Load Percentage</strong></td>
+                            <td>${data.load1 || 0}%</td>
+                            <td>${data.load2 || 0}%</td>
+                            <td>${data.load3 || 0}%</td>
+                            <td><strong>~${avgLoad}% Avg</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+            
+            content.innerHTML = html;
+        }
+        
+        // Refresh current section data
+        function refreshData() {
             if (currentSection === 'clients') {
                 loadClients();
             } else {
@@ -927,12 +1530,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
         
         // Initialize dashboard
         async function init() {
+            await loadSystemStatus();
             await loadClients();
             await loadConfig();
             await loadUPSStatus();
             
             // Auto-refresh every 30 seconds
-            setInterval(refreshData, 30000);
+            setInterval(() => {
+                if (currentSection === 'system') {
+                    loadSystemStatus();
+                } else if (currentSection === 'clients') {
+                    loadClients();
+                } else if (currentSection === 'config') {
+                    loadConfig();
+                }
+            }, 30000);
             setInterval(loadUPSStatus, 30000);
         }
         

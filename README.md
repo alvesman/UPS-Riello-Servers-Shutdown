@@ -23,6 +23,13 @@ The system consists of three main components:
   - Connected clients with hostnames, IPs, and last connection times
   - UPS configuration (URL, minimum battery threshold)
   - Per-client shutdown delays
+  - **Comprehensive system status** with detailed 3-phase UPS metrics including:
+    - Input measurements (voltage, current, frequency per phase)
+    - Bypass line status
+    - Output measurements (voltage, current, power, load percentage per phase)
+    - Battery status (capacity, autonomy, voltage, current)
+    - Environmental data (temperatures, energy consumption)
+    - System status and alarms
 - Allows administrators to:
   - Configure UPS URL and minimum battery threshold
   - Set individual shutdown delays for each client (prioritization)
