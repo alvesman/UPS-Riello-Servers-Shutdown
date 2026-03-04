@@ -112,6 +112,45 @@ def load_configuration():
         print(f"Error loading configuration: {e}")
         return []
 
+def load_power_events(limit: int = 100):
+    """Load recent power events from the database.
+    
+    Args:
+        limit: Maximum number of events to return (default 100)
+        
+    Returns:
+        List of power event dictionaries
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, event_type, event_time, vin1, vin2, vin3, 
+                   battery_current, autonomy, details
+            FROM power_events
+            ORDER BY event_time DESC
+            LIMIT ?
+        """, (limit,))
+        columns = [description[0] for description in cursor.description]
+        rows = cursor.fetchall()
+        conn.close()
+        
+        events = []
+        for row in rows:
+            event_dict = dict(zip(columns, row))
+            # Format the timestamp for display
+            if event_dict.get('event_time'):
+                try:
+                    dt_object = datetime.fromisoformat(event_dict['event_time'])
+                    event_dict['event_time_formatted'] = dt_object.strftime('%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError):
+                    event_dict['event_time_formatted'] = event_dict['event_time']
+            events.append(event_dict)
+        return events
+    except Exception as e:
+        print(f"Error loading power events: {e}")
+        return []
+
 def update_config_value(key: str, value: str):
     """Update a configuration value in the database."""
     try:
@@ -269,6 +308,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.serve_ups_status()
         elif parsed_path.path == '/api/ups_full_status':
             self.serve_ups_full_status()
+        elif parsed_path.path == '/api/power_events':
+            self.serve_power_events()
         else:
             self.send_error(404, "Page not found")
     
@@ -390,6 +431,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_json_response(ups_full_status)
         else:
             self.send_json_response({"error": "Unable to fetch full UPS status"}, 500)
+    
+    def serve_power_events(self):
+        """Serve power events data as JSON."""
+        # Get limit parameter if provided
+        parsed_path = urlparse(self.path)
+        query_params = parse_qs(parsed_path.query)
+        limit = int(query_params.get('limit', [100])[0])
+        
+        events = load_power_events(limit)
+        self.send_json_response({"events": events})
     
     def handle_update_shutdown(self, data):
         """Handle shutdown time update request."""
@@ -1092,6 +1143,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             <button class="nav-btn" onclick="showSection('clients')">
                 📡 Client Connections
             </button>
+            <button class="nav-btn" onclick="showSection('events')">
+                📋 Power Events
+            </button>
             <button class="nav-btn" onclick="showSection('config')">
                 ⚙️ Configuration
             </button>
@@ -1176,6 +1230,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             
+            <!-- Power Events Section -->
+            <div id="events-section" class="section">
+                <div class="section-header">
+                    <h2>Power Event History</h2>
+                    <button class="btn btn-primary" onclick="refreshData()">
+                        🔄 Refresh
+                    </button>
+                </div>
+                
+                <div id="events-content">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading power events...</p>
+                    </div>
+                </div>
+            </div>
+            
             <!-- System Status Section -->
             <div id="system-section" class="section active">
                 <div class="section-header">
@@ -1202,6 +1273,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     <script>
         let clientsData = [];
         let configData = [];
+        let eventsData = [];
         let currentSection = 'system';
         let upsStatusData = null;
         
@@ -1257,9 +1329,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             } else if (section === 'clients') {
                 document.getElementById('clients-section').classList.add('active');
                 document.querySelectorAll('.nav-btn')[1].classList.add('active');
+            } else if (section === 'events') {
+                document.getElementById('events-section').classList.add('active');
+                document.querySelectorAll('.nav-btn')[2].classList.add('active');
             } else if (section === 'config') {
                 document.getElementById('config-section').classList.add('active');
-                document.querySelectorAll('.nav-btn')[2].classList.add('active');
+                document.querySelectorAll('.nav-btn')[3].classList.add('active');
             }
         }
         
@@ -1275,6 +1350,79 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 alert.style.opacity = '0';
                 setTimeout(() => alert.remove(), 300);
             }, 4000);
+        }
+        
+        // Load power events
+        async function loadEvents() {
+            try {
+                const response = await fetch('/api/power_events?limit=20');
+                const data = await response.json();
+                eventsData = data.events;
+                renderEventsTable();
+            } catch (error) {
+                document.getElementById('events-content').innerHTML = 
+                    '<div class=\"alert alert-error\">Error loading power events: ' + error.message + '</div>';
+            }
+        }
+        
+        // Render power events table
+        function renderEventsTable() {
+            const content = document.getElementById('events-content');
+            
+            if (eventsData.length === 0) {
+                content.innerHTML = '<div class=\"alert alert-info\">No power events recorded yet.</div>';
+                return;
+            }
+            
+            let html = '<p style=\"margin-bottom: 15px; color: #a1a1aa; font-weight: 600;\">';
+            html += `Total Events: <span class=\"badge\">${eventsData.length}</span> (showing last 20)</p>`;
+            html += '<table><thead><tr>';
+            html += '<th>Time</th><th>Event Type</th><th>Input V (Ph1/2/3)</th>';
+            html += '<th>Battery Current</th><th>Autonomy</th><th>Details</th>';
+            html += '</tr></thead><tbody>';
+            
+            eventsData.forEach(event => {
+                html += '<tr>';
+                html += `<td><strong>${event.event_time_formatted || event.event_time}</strong></td>`;
+                
+                // Event type with colored badge
+                let eventIcon = '📝';
+                if (event.event_type === 'mains_lost') {
+                    eventIcon = '⚠️';
+                } else if (event.event_type === 'mains_restored') {
+                    eventIcon = '✅';
+                } else if (event.event_type === 'shutdown_initiated') {
+                    eventIcon = '🔴';
+                }
+                html += `<td><span class=\"badge\">${eventIcon} ${event.event_type.replace(/_/g, ' ')}</span></td>`;
+                
+                // Input voltages
+                const v1 = event.vin1 !== null ? event.vin1 + 'V' : 'N/A';
+                const v2 = event.vin2 !== null ? event.vin2 + 'V' : 'N/A';
+                const v3 = event.vin3 !== null ? event.vin3 + 'V' : 'N/A';
+                html += `<td>${v1} / ${v2} / ${v3}</td>`;
+                
+                // Battery current (with charging/discharging indicator)
+                if (event.battery_current !== null) {
+                    const current = event.battery_current;
+                    const status = current < 0 ? '🔋 Charging' : current > 0 ? '⚡ Discharging' : 'Idle';
+                    html += `<td>${current}A (${status})</td>`;
+                } else {
+                    html += '<td>N/A</td>';
+                }
+                
+                // Autonomy
+                html += `<td>${event.autonomy !== null ? formatTime(event.autonomy) : 'N/A'}</td>`;
+                
+                // Details (truncated if too long)
+                const details = event.details || 'N/A';
+                const truncated = details.length > 60 ? details.substring(0, 60) + '...' : details;
+                html += `<td><span style=\"font-size: 12px; color: #a1a1aa;\" title=\"${details}\">${truncated}</span></td>`;
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            content.innerHTML = html;
         }
         
         // Load clients data
@@ -1475,6 +1623,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 loadSystemStatus();
             } else if (currentSection === 'clients') {
                 loadClients();
+            } else if (currentSection === 'events') {
+                loadEvents();
             } else if (currentSection === 'config') {
                 loadConfig();
             }
@@ -1883,6 +2033,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         function refreshData() {
             if (currentSection === 'clients') {
                 loadClients();
+            } else if (currentSection === 'events') {
+                loadEvents();
             } else {
                 loadConfig();
             }
@@ -1892,6 +2044,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         async function init() {
             await loadSystemStatus();
             await loadClients();
+            await loadEvents();
             await loadConfig();
             await loadUPSStatus();
             
@@ -1901,6 +2054,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     loadSystemStatus();
                 } else if (currentSection === 'clients') {
                     loadClients();
+                } else if (currentSection === 'events') {
+                    loadEvents();
                 } else if (currentSection === 'config') {
                     loadConfig();
                 }
