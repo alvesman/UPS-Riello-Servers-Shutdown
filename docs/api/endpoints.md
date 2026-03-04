@@ -23,6 +23,7 @@ python3 UPSdashboard.py 9000  # Run on port 9000
 | GET | `/api/config` | List all configuration values |
 | GET | `/api/ups_status` | Get current UPS battery status |
 | GET | `/api/ups_full_status` | Get complete UPS status with all metrics |
+| GET | `/api/power_events` | Get power event history (mains lost/restored, shutdown) |
 | POST | `/api/update_shutdown` | Update client shutdown delay |
 | POST | `/api/update_config` | Update configuration value |
 
@@ -295,6 +296,107 @@ Returns complete, detailed UPS status with all available metrics from the live_d
 **Example**:
 ```bash
 curl http://localhost:8080/api/ups_full_status
+```
+
+---
+
+### GET /api/power_events
+
+Returns historical power events including mains power loss/restoration and shutdown initiations.
+
+**Query Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 100 | Maximum number of events to return |
+
+**Response**: JSON
+
+```json
+{
+    "events": [
+        {
+            "id": 3,
+            "event_type": "shutdown_initiated",
+            "event_time": "2026-03-04T15:10:00.111222",
+            "event_time_formatted": "2026-03-04 15:10:00",
+            "vin1": 0,
+            "vin2": 0,
+            "vin3": 0,
+            "battery_current": 78,
+            "autonomy": 12,
+            "details": "Shutdown initiated after 5 consecutive low readings. Battery at 12 minutes (threshold: 15)"
+        },
+        {
+            "id": 2,
+            "event_type": "mains_restored",
+            "event_time": "2026-03-04T14:45:30.654321",
+            "event_time_formatted": "2026-03-04 14:45:30",
+            "vin1": 228,
+            "vin2": 227,
+            "vin3": 229,
+            "battery_current": -2,
+            "autonomy": 118,
+            "details": "Mains power has been restored"
+        },
+        {
+            "id": 1,
+            "event_type": "mains_lost",
+            "event_time": "2026-03-04T14:30:15.123456",
+            "event_time_formatted": "2026-03-04 14:30:15",
+            "vin1": 0,
+            "vin2": 0,
+            "vin3": 0,
+            "battery_current": 45,
+            "autonomy": 120,
+            "details": "Mains power has been lost, running on battery"
+        }
+    ]
+}
+```
+
+**Response Fields**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Unique event ID |
+| `event_type` | string | Event type: 'mains_lost', 'mains_restored', or 'shutdown_initiated' |
+| `event_time` | string | ISO 8601 timestamp of event |
+| `event_time_formatted` | string | Human-readable timestamp (YYYY-MM-DD HH:MM:SS) |
+| `vin1`, `vin2`, `vin3` | integer | Input voltage per phase (Volts) |
+| `battery_current` | integer | Battery current (Amperes, negative=charging, positive=discharging) |
+| `autonomy` | integer | Battery autonomy in minutes at time of event |
+| `details` | string | Additional event details and context |
+
+**Event Types**:
+
+| Type | Description |
+|------|-------------|
+| `mains_lost` | Mains power lost, UPS switched to battery |
+| `mains_restored` | Mains power restored, UPS back to normal operation |
+| `shutdown_initiated` | System shutdown triggered due to low battery |
+
+**Usage Notes**:
+- Events are ordered by most recent first
+- Input voltage near 0 indicates mains power loss
+- Positive battery current indicates discharging (on battery)
+- Negative battery current indicates charging (mains present)
+
+**Status Codes**:
+| Code | Description |
+|------|-------------|
+| 200 | Success |
+
+**Examples**:
+```bash
+# Get last 100 events (default)
+curl http://localhost:8080/api/power_events
+
+# Get last 50 events
+curl http://localhost:8080/api/power_events?limit=50
+
+# Get last 10 events
+curl http://localhost:8080/api/power_events?limit=10
 ```
 
 ---

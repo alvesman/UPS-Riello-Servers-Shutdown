@@ -28,6 +28,18 @@ erDiagram
         TEXT key PK "Configuration key"
         TEXT value "Configuration value"
     }
+    
+    power_events {
+        INTEGER id PK "Auto-increment ID"
+        TEXT event_type "Event type"
+        TEXT event_time "ISO 8601 timestamp"
+        INTEGER vin1 "Input voltage phase 1"
+        INTEGER vin2 "Input voltage phase 2"
+        INTEGER vin3 "Input voltage phase 3"
+        INTEGER battery_current "Battery current"
+        INTEGER autonomy "Battery autonomy minutes"
+        TEXT details "Event details"
+    }
 ```
 
 ---
@@ -114,6 +126,68 @@ shutdown_issued      | false
 
 ---
 
+### power_events
+
+Stores historical power events including mains power loss/restoration and shutdown initiations.
+
+**DDL**:
+```sql
+CREATE TABLE IF NOT EXISTS power_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    event_time TEXT NOT NULL,
+    vin1 INTEGER,
+    vin2 INTEGER,
+    vin3 INTEGER,
+    battery_current INTEGER,
+    autonomy INTEGER,
+    details TEXT
+)
+```
+
+**Columns**:
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `id` | INTEGER | No | AUTO | Event ID (Primary Key, Auto-increment) |
+| `event_type` | TEXT | No | - | Type of event: 'mains_lost', 'mains_restored', 'shutdown_initiated' |
+| `event_time` | TEXT | No | - | ISO 8601 timestamp when event occurred |
+| `vin1` | INTEGER | Yes | NULL | Input voltage phase 1 (Volts) at time of event |
+| `vin2` | INTEGER | Yes | NULL | Input voltage phase 2 (Volts) at time of event |
+| `vin3` | INTEGER | Yes | NULL | Input voltage phase 3 (Volts) at time of event |
+| `battery_current` | INTEGER | Yes | NULL | Battery current (Amperes, negative=charging, positive=discharging) |
+| `autonomy` | INTEGER | Yes | NULL | Battery autonomy (minutes) at time of event |
+| `details` | TEXT | Yes | NULL | Additional event details and context |
+
+**Indexes**:
+- Primary Key on `id`
+
+**Event Types**:
+
+| Event Type | Description | When Recorded |
+|------------|-------------|---------------|
+| `mains_lost` | Mains power has been lost | When input voltage drops below threshold or battery starts discharging |
+| `mains_restored` | Mains power has been restored | When input voltage returns above threshold or battery starts charging |
+| `shutdown_initiated` | System shutdown has been triggered | When shutdown command is issued due to low battery |
+
+**Example Data**:
+```
+id | event_type         | event_time                 | vin1 | vin2 | vin3 | battery_current | autonomy | details
+---|--------------------|-----------------------------|------|------|------|-----------------|----------|------------------
+1  | mains_lost         | 2026-03-04T14:30:15.123456 | 0    | 0    | 0    | 45              | 120      | Mains power has been lost, running on battery
+2  | mains_restored     | 2026-03-04T14:45:30.654321 | 228  | 227  | 229  | -2              | 118      | Mains power has been restored
+3  | shutdown_initiated | 2026-03-04T15:10:00.111222 | 0    | 0    | 0    | 78              | 12       | Shutdown initiated after 5 consecutive low readings...
+```
+
+**Usage Notes**:
+- Events are automatically recorded by the UPS monitor thread in `UPSserver.py`
+- Input voltage below 50V indicates mains power loss
+- Positive battery current indicates discharging (on battery)
+- Negative battery current indicates charging (mains present)
+- Dashboard can query events via `/api/power_events` endpoint
+
+---
+
 ## Database Initialization
 
 The database is initialized by `UPSServer._init_database()` on server startup:
@@ -141,6 +215,21 @@ def _init_database(self):
             CREATE TABLE IF NOT EXISTS configuration (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            )
+        ''')
+        
+        # Create power_events table if it doesn't exist
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS power_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                event_time TEXT NOT NULL,
+                vin1 INTEGER,
+                vin2 INTEGER,
+                vin3 INTEGER,
+                battery_current INTEGER,
+                autonomy INTEGER,
+                details TEXT
             )
         ''')
         

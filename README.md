@@ -23,6 +23,7 @@ The system consists of three main components:
   - Connected clients with hostnames, IPs, and last connection times
   - UPS configuration (URL, minimum battery threshold)
   - Per-client shutdown delays
+  - **Power event history** tracking mains power loss/restoration and shutdown events
   - **Comprehensive system status** with detailed 3-phase UPS metrics including:
     - Input measurements (voltage, current, frequency per phase)
     - Bypass line status
@@ -33,6 +34,7 @@ The system consists of three main components:
 - Allows administrators to:
   - Configure UPS URL and minimum battery threshold
   - Set individual shutdown delays for each client (prioritization)
+  - View historical power events with timestamps and UPS metrics
 - **No authentication** (security note below)
 
 ### 3. **UPS Client** (`UPSclient.py`)
@@ -48,6 +50,7 @@ The system consists of three main components:
 ## Key Features
 
 - **Priority-based shutdown**: Each client can have a custom delay (0-N seconds), allowing critical services to shut down last
+- **Power event tracking**: Automatically records mains power loss, restoration, and shutdown events with timestamps and UPS metrics
 - **pfSense/OPNsense support**: Optionally shuts down a pfSense or OPNsense firewall via SSH before the server itself shuts down
 - **Automatic discovery**: Clients find the server without manual IP configuration
 - **Resilient connections**: Heartbeat monitoring, automatic reconnection, and timeout handling
@@ -105,13 +108,33 @@ To enable pfSense shutdown, you need to:
 To disable pfSense shutdown, simply clear any of the three SSH settings in the dashboard.
 
 ## Workflow
-
-1. UPS Server continuously monitors Riello UPS battery level
+ and power state
 2. Clients maintain heartbeat connections to server
-3. When battery ≤ threshold:
+3. Power events are automatically tracked:
+   - **Mains lost**: When utility power fails and UPS switches to battery
+   - **Mains restored**: When utility power returns
+   - **Shutdown initiated**: When system triggers shutdown due to low battery
+4. When battery ≤ threshold:
    - Server sends shutdown commands to all clients with their configured delays
    - Clients execute shutdown after their respective delays
    - Server shuts down last with longest delay + buffer
+5. This ensures graceful, prioritized shutdown of entire infrastructure
+
+## Power Event Monitoring
+
+The system tracks critical power events in the database with detailed metrics:
+
+- **Event Type**: mains_lost, mains_restored, or shutdown_initiated
+- **Timestamp**: Precise date and time of each event
+- **UPS Metrics**: Input voltages (3-phase), battery current, autonomy
+- **Detection Method**: 
+  - Input voltage monitoring (< 50V indicates mains loss)
+  - Battery current analysis (positive = discharging, negative = charging)
+
+View events via:
+- Dashboard **Power Events** tab (last 20 events)
+- API endpoint: `GET /api/power_events?limit=N`
+- Direct database query: `SELECT * FROM power_events ORDER BY event_time DESC;`
 4. This ensures graceful, prioritized shutdown of entire infrastructure
 ---
 ################################################################################

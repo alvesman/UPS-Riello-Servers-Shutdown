@@ -149,6 +149,10 @@ class UPSServer:
         self.REQUIRED_LOW_READINGS = 5  # Number of consecutive low readings before shutdown
         self.RECOVERY_BUFFER_MINUTES = 60  # Extra minutes above threshold required to exit recovery mode
         
+        # Track mains power state
+        self.mains_power_present = True  # Assume mains is present at startup
+        self.INPUT_VOLTAGE_THRESHOLD = 50  # Voltage below this indicates mains lost
+        
         # Check if we're recovering from a previous shutdown
         self.recovery_mode = self._check_recovery_mode()
         if self.recovery_mode:
@@ -176,6 +180,21 @@ class UPSServer:
                 CREATE TABLE IF NOT EXISTS configuration (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
+                )
+            ''')
+            
+            # Create power_events table if it doesn't exist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS power_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    event_time TEXT NOT NULL,
+                    vin1 INTEGER,
+                    vin2 INTEGER,
+                    vin3 INTEGER,
+                    battery_current INTEGER,
+                    autonomy INTEGER,
+                    details TEXT
                 )
             ''')
             
@@ -401,6 +420,95 @@ class UPSServer:
         self._set_shutdown_issued(False)
         self.consecutive_low_readings = 0
         logger.info("Exited RECOVERY MODE - normal shutdown monitoring resumed")
+    
+    def _record_power_event(self, event_type: str, vin1: int = None, vin2: int = None, vin3: int = None, 
+                           battery_current: int = None, autonomy: int = None, details: str = None):
+        """Record a power event in the database.
+        
+        Args:
+            event_type: Type of event ('mains_lost', 'mains_restored', 'shutdown_initiated')
+            vin1, vin2, vin3: Input voltages for three phases
+            battery_current: Battery current (negative = charging, positive = discharging)
+            autonomy: Battery autonomy in minutes
+            details: Additional details as text
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            event_time = datetime.now().isoformat()
+            
+            cursor.execute('''
+                INSERT INTO power_events (event_type, event_time, vin1, vin2, vin3, battery_current, autonomy, details)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (event_type, event_time, vin1, vin2, vin3, battery_current, autonomy, details))
+            
+            conn.commit()
+            conn.close()
+            logger.info(f"Power event recorded: {event_type} at {event_time}")
+        except Exception as e:
+            logger.error(f"Failed to record power event: {e}")
+    
+    def _check_mains_power_state(self, ups_data: dict) -> bool:
+        """Check if mains power is present based on UPS data.
+        
+        Args:
+            ups_data: Full UPS data dictionary from JSON API
+            
+        Returns:
+            True if mains power is present, False if lost
+        """
+        # Get input voltages (all three phases)
+        vin1 = ups_data.get('vin1', 0)
+        vin2 = ups_data.get('vin2', 0)
+        vin3 = ups_data.get('vin3', 0)
+        
+        # Get battery current (negative = charging, positive = discharging)
+        battery_current = ups_data.get('abatp', 0)
+        
+        # Mains is considered present if:
+        # 1. At least one input voltage is above threshold (typically ~220V)
+        # 2. Battery current is negative (charging) or very low
+        
+        voltage_present = (vin1 > self.INPUT_VOLTAGE_THRESHOLD or 
+                          vin2 > self.INPUT_VOLTAGE_THRESHOLD or 
+                          vin3 > self.INPUT_VOLTAGE_THRESHOLD)
+        
+        battery_charging = battery_current < 5  # Negative or very low (not discharging significantly)
+        
+        # Mains is present if voltage is good OR battery is charging
+        # (use OR because sometimes voltage readings might be unreliable)
+        return voltage_present or battery_charging
+    
+    def _get_full_ups_data(self, url: str) -> dict:
+        """Fetch complete UPS data from JSON API.
+        
+        Args:
+            url: URL to the UPS JSON endpoint
+            
+        Returns:
+            Dictionary with UPS data, or None if failed
+        """
+        try:
+            logger.debug(f"Fetching full UPS data from URL: {url}")
+            
+            # Create SSL context that doesn't verify certificates
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
+            # Create request with SSL context
+            request = urllib.request.Request(url)
+            
+            # Fetch the JSON data
+            with urllib.request.urlopen(request, context=ssl_context, timeout=10) as response:
+                data = response.read().decode('utf-8')
+                json_data = json.loads(data)
+                return json_data
+                
+        except Exception as e:
+            logger.error(f"Failed to fetch full UPS data: {e}")
+            return None
     
     def start(self):
         """Start the server."""
@@ -665,8 +773,48 @@ class UPSServer:
                 # Get UPS URL from database
                 ups_url = self.get_config_value('UPS_URL', UPS_URL)
                 
-                # Get total minutes from UPS
-                total_minutes = ReadUPSMinutes.get_total_minutes(ups_url)
+                # Get full UPS data (including voltages, battery current, etc.)
+                ups_data = self._get_full_ups_data(ups_url)
+                
+                if ups_data is None:
+                    logger.warning("Failed to retrieve UPS data")
+                    time.sleep(UPS_CHECK_INTERVAL)
+                    continue
+                
+                # Check mains power state
+                mains_present = self._check_mains_power_state(ups_data)
+                
+                # Detect state change and record event
+                if mains_present != self.mains_power_present:
+                    if mains_present:
+                        # Mains power restored
+                        logger.warning("MAINS POWER RESTORED")
+                        self._record_power_event(
+                            'mains_restored',
+                            vin1=ups_data.get('vin1'),
+                            vin2=ups_data.get('vin2'),
+                            vin3=ups_data.get('vin3'),
+                            battery_current=ups_data.get('abatp'),
+                            autonomy=ups_data.get('autonomy'),
+                            details="Mains power has been restored"
+                        )
+                    else:
+                        # Mains power lost
+                        logger.critical("MAINS POWER LOST - UPS running on battery!")
+                        self._record_power_event(
+                            'mains_lost',
+                            vin1=ups_data.get('vin1'),
+                            vin2=ups_data.get('vin2'),
+                            vin3=ups_data.get('vin3'),
+                            battery_current=ups_data.get('abatp'),
+                            autonomy=ups_data.get('autonomy'),
+                            details="Mains power has been lost, running on battery"
+                        )
+                    
+                    self.mains_power_present = mains_present
+                
+                # Get total minutes from UPS data
+                total_minutes = ups_data.get('autonomy')
                 
                 if total_minutes is not None:
                     # Get minimum minutes threshold from configuration
@@ -739,6 +887,17 @@ class UPSServer:
                                     
                                     self._send_message_to_client_unsafe(hostname, shutdown_message)
                                     logger.critical(f"Sent shutdown command to {hostname} with {seconds_to_shutdown}s delay")
+                            
+                            # Record shutdown initiation event
+                            self._record_power_event(
+                                'shutdown_initiated',
+                                vin1=ups_data.get('vin1'),
+                                vin2=ups_data.get('vin2'),
+                                vin3=ups_data.get('vin3'),
+                                battery_current=ups_data.get('abatp'),
+                                autonomy=total_minutes,
+                                details=f"Shutdown initiated after {self.consecutive_low_readings} consecutive low readings. Battery at {total_minutes} minutes (threshold: {ups_minimum_minutes})"
+                            )
                             
                             # After notifying all clients, shutdown this server with the maximum delay
                             self._execute_shutdown(max_seconds_to_shutdown + 30) # Add a buffer. This code must run on the last machine to shut down
