@@ -1764,7 +1764,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 html += '<div class="alarm-box">';
                 html += '<div class="alarm-title">⚠️ Active Alarms</div>';
                 data.alarms.forEach(alarm => {
-                    html += `<div style="color: #fca5a5; font-size: 14px; margin-top: 5px;">• ${alarm}</div>`;
+                    let alarmText;
+                    if (typeof alarm === 'string') {
+                        alarmText = alarm;
+                    } else if (typeof alarm === 'object' && alarm !== null) {
+                        alarmText = alarm.desc || alarm.description || alarm.message || alarm.name || JSON.stringify(alarm);
+                    } else {
+                        alarmText = String(alarm);
+                    }
+                    html += `<div style="color: #fca5a5; font-size: 14px; margin-top: 5px;">• ${alarmText}</div>`;
                 });
                 html += '</div>';
             } else {
