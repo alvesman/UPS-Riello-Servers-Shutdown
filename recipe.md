@@ -1,5 +1,28 @@
 # Recipe: Build UPS-Riello-Servers-Shutdown from Scratch
 
+```mermaid
+graph TD
+    Internet[Internet]
+    Switch[Network Switch]
+    pfSense[pfSense]
+    TrueNAS[TrueNAS]
+    GPU1[GPU1]
+    GPU2[GPU2]
+    K8s[KubernetesClusters]
+    UPS[UPS]
+    
+    Internet --- pfSense
+    pfSense --- Switch
+    TrueNAS --- Switch
+    GPU1 --- Switch
+    GPU2 --- Switch
+    K8s --- Switch
+    UPS --- Switch
+    
+    linkStyle 0,1,2,3,4,5,6 stroke:#fff,stroke-width:8px
+```
+
+
 > **How to use this file**: Feed each prompt below to GitHub Copilot (or any AI coding assistant) **one at a time, in order**, starting from an empty repository. Each prompt builds on the files created by previous ones. Wait for each prompt to complete before moving to the next.
 >
 > This recipe focuses exclusively on the working system — server, client, dashboard, and deployment artifacts. Documentation is excluded.
