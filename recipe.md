@@ -23,7 +23,7 @@ Three components:
 
 ### 1. UPS Server (UPSserver.py)
 - Runs on the LAST machine to be shut down
-- Monitors a Riello UPS device via HTTPS JSON API (https://UPS_DASHBOARD_IP/json/live_data.json)
+- Monitors a Riello UPS device via HTTPS JSON API (https://<UPS_DEVICE_IP>/json/live_data.json) where UPS_DEVICE_IP is a constant defined in the code (default: 192.168.155.55, configurable via the dashboard)
 - Polls the UPS every 60 seconds to check battery autonomy (remaining minutes)
 - Manages client connections via UDP discovery (port 5225) and TCP communication (port 5226)
 - Stores client information and configuration in SQLite database (ups_clients.db)
@@ -39,9 +39,9 @@ Three components:
 ### 3. UPS Client (UPSclient.py)
 - Deployed on ALL machines needing automated shutdown (except the one running UPSserver)
 - Auto-discovers server via UDP broadcast
-- Maintains TCP connection with heartbeats (30s base + random 0-30s jitter)
+- Maintains TCP connection with heartbeats (30s base + random 1-30s jitter)
 - Receives ups_status and shutdown messages
-- Implements exponential backoff for reconnection (10-60 seconds)
+- Implements linear backoff for reconnection (10-60 seconds, +10s per failure)
 - Executes OS-appropriate shutdown commands (Linux/macOS)
 
 ## Key Features section:
@@ -79,11 +79,12 @@ Include a pfSense SSH Setup subsection with numbered steps:
 5. Configure via Dashboard
 
 ## Workflow section explaining:
-1. Server polls UPS and tracks power state
-2. Clients maintain heartbeat connections
-3. Power events auto-tracked (mains lost, mains restored, shutdown initiated)
-4. When battery ≤ threshold: server sends shutdown commands with configured delays, clients execute after delays, server shuts down last
-5. Graceful prioritized shutdown of entire infrastructure
+1. Server polls UPS every 60 seconds and tracks power state (mains present vs. battery)
+2. Clients maintain heartbeat connections (30s base + random jitter)
+3. Power events auto-tracked: mains_lost (input voltage drops below 50V), mains_restored (voltage returns), shutdown_initiated (battery critical)
+4. When battery ≤ threshold for 5 consecutive readings: server sends shutdown commands with configured delays, clients execute after delays, server shuts down last
+5. Recovery mode prevents re-triggering until battery exceeds threshold + 60 min buffer
+6. Graceful prioritized shutdown of entire infrastructure
 
 ## Power Event Monitoring section:
 - Event types: mains_lost, mains_restored, shutdown_initiated
@@ -96,12 +97,12 @@ Include a pfSense SSH Setup subsection with numbered steps:
 - Copy UPSserver.py to /opt/UPSserver/
 - Copy UPSserver.service to /etc/systemd/system/
 - Copy UPSserver.logrotate to /etc/logrotate.d/UPSserver
-- Create log files: /var/log/UPSserver.log and /var/log/UPSserver_error.log (chmod 644)
+- Create log files: /var/log/UPSserver.log and /var/log/UPSserver_error.log (chmod 644 for initial creation; logrotate maintains permissions thereafter)
 - Note: service must run as root for shutdown commands
 - Log rotation test commands
 - systemctl daemon-reload, enable, start, status commands
 - Monitoring commands (tail -f on log files)
-- Security note: dashboard does not provide authentication at this moment
+- Security note: dashboard is protected by access code authentication (see Prompts 5-6)
 - Useful commands: stop, restart, status, disable, enable
 
 ### Dashboard deployment:
@@ -121,14 +122,62 @@ Include a pfSense SSH Setup subsection with numbered steps:
 - View logs commands
 
 Also create a LICENSE file with MIT license.
+
+Note: The deployment sections above list the high-level steps (directory creation, file copy destinations, systemctl commands). The exact contents of the .service and .logrotate files are defined in Prompts 7-8. The README should present the deployment steps as shown above but tell the reader to consult the actual .service and .logrotate files for their contents, rather than inlining those file contents into the README.
+
+Known limitations to mention in the README:
+- Client rows in client_connections are never deleted. Decommissioned clients remain as historical records. To remove them, use sqlite3 directly on ups_clients.db.
+- The dashboard access code is stored in plaintext in the SQLite database. For environments where this is a concern, restrict network access to the dashboard port (8080) and change the default code immediately after first login.
 ```
+
+---
+
+## Riello UPS JSON API Reference (for Prompts 2, 3, 5, and 6)
+
+> **Before implementing any prompt that references UPS JSON fields** (Prompts 2, 3, 5, and 6), fetch and read the following URLs to understand the Riello UPS `live_data.json` API. Build a complete field-name-to-meaning mapping table from these sources.
+
+### URLs to fetch:
+
+1. **NetMan Troubleshooting Guide (rev05)** — lists all JSON field names:
+   https://www.rielloupsamerica.com/uploads/file/954/3954/NETMAN_TROUBLESHOOT_rev05.pdf
+
+2. **NetMan Troubleshooting Guide (rev06)** — updated version:
+   https://www.riello-ups.com/uploads/file/428/4428/NETMAN_TROUBLESHOOT_rev06.pdf
+
+3. **NetMan 208 User Manual** — JSON section (pages 34-37), MODBUS register tables (pages 93-95), BACnet object descriptions (pages 96-97):
+   https://www.manualslib.com/manual/3093060/Riello-Ups-Netman208.html
+
+4. **NetMan 208 Official Manual PDF**:
+   https://www.riello-ups.com/uploads/file/614/3614/0MNACCSA8ENUB__MAN_ACC_NETMAN_208_EN_.pdf
+
+5. **Riello SNMP MIB** — maps OIDs to human-readable measurement descriptions:
+   https://github.com/librenms/librenms/blob/master/mibs/riello/RIELLOUPS-MIB
+
+6. **Siemens Riello UPS device properties** — field configuration reference:
+   https://mybuilding.siemens.com/D037871569805/Help/EngineeringHelp/en-US/14803629451.html
+
+### How to build the mapping:
+
+- The Troubleshooting Guides list the JSON field names (e.g., `vin1`, `vin2`, `vin3`, `fin`, `vbyp1`, `autonomy`, `batcap`, `abatp`, etc.)
+- The **MODBUS register tables** in the NetMan 208 manual provide measurement descriptions and units (e.g., "Input voltage (Ph-N) V1", "Input frequency Hz/10", "Battery capacity %")
+- The **BACnet object descriptions** provide additional human-readable measurement names
+- The **SNMP MIB** provides detailed descriptions for each measurement OID
+- **Infer semantics and units by cross-referencing** the JSON field names with the MODBUS/BACnet/SNMP descriptions. Field name patterns help: `v` = voltage, `a`/`i` = current (amps), `f` = frequency, `w` = power (watts), `p`/`load` = load %, `t` = temperature, numbers `1/2/3` = phase, `bat`/`b` = battery, `in` = input, `out` = output, `byp` = bypass
+- **Key scaling rules** (from MODBUS tables): frequency values are in **decihertz** (÷10 for Hz), battery bus voltages (`vbatp`/`vbatn`) are in **decivolts** (÷10 for V), power values may be in deciWatts or Watts depending on the field
+- **Sign conventions**: negative `abatp`/`abatn` = battery charging, positive = discharging
+
+> If any URL is inaccessible, use the remaining sources and the field name patterns to infer the semantics. The mapping must cover at minimum: `vin1-3`, `ain1-3`, `fin`, `vbyp1-3`, `fbyp`, `vout1-3`, `aout1-3`, `fout`, `w1-3`, `load1-3`, `vbatp`, `vbatn`, `abatp`, `abatn`, `autonomy`, `batcap`, `tsys`, `tbatext`, `KWh`, `alarms`, `system_status`.
 
 ---
 
 ## Prompt 2 — UPS Server: Core Infrastructure
 
 ```
-Create server/UPSserver.py — the core UPS server component. Use ONLY Python standard library modules (no external dependencies). The file must include:
+Create server/UPSserver.py — the core UPS server component. Use ONLY Python standard library modules (no external dependencies).
+
+IMPORTANT: Before implementing, fetch and read the URLs listed in the "Riello UPS JSON API Reference" section above to understand the UPS JSON field names, their semantics, and units. Use this knowledge when implementing fields like 'autonomy', 'abatp', 'vin1/vin2/vin3', etc.
+
+The file must include:
 
 ## Imports (exact list):
 socket, threading, json, time, logging, sqlite3, platform, subprocess, sys, urllib.request, urllib.error, ssl, typing.Dict, typing.Tuple, datetime.datetime
@@ -145,7 +194,7 @@ This ensures INFO/WARNING go to stdout (captured by systemd StandardOutput) and 
 UDP_BROADCAST_PORT = 5225
 TCP_SERVER_PORT = 5226
 DISCOVERY_MESSAGE = b"UPS_DISCOVER"
-HEARTBEAT_TIMEOUT = 90  # 90 seconds = 30s base + max 30s random jitter + 30s buffer
+HEARTBEAT_TIMEOUT = 90  # 90 seconds = 30s base + up to 30s random jitter + 30s safety buffer
 UPS_URL = 'https://192.168.155.55/json/live_data.json'  # Default, configurable via DB
 UPS_CHECK_INTERVAL = 60  # seconds
 
@@ -215,9 +264,11 @@ Insert default config values (INSERT OR IGNORE):
 - _set_shutdown_issued(issued: bool): Sets 'shutdown_issued' to 'true'/'false' in DB
 - _exit_recovery_mode(): Sets recovery_mode=False, clears shutdown_issued flag, resets consecutive_low_readings
 
+Note: recovery_mode is effectively set to True when _execute_shutdown calls _set_shutdown_issued(True). Since _execute_shutdown terminates the machine, recovery_mode=True is read from the DB on next startup via _check_recovery_mode() in __init__. There is no in-process assignment of self.recovery_mode = True because the process does not survive shutdown.
+
 ### Power event methods:
 - _record_power_event(event_type, vin1=None, vin2=None, vin3=None, battery_current=None, autonomy=None, details=None): Insert into power_events with current ISO timestamp
-- _check_mains_power_state(ups_data: dict) -> bool: Checks vin1/vin2/vin3 against INPUT_VOLTAGE_THRESHOLD (50V) and battery current (abatp field, <5 = charging). Returns True if any voltage > threshold OR battery_current < 5
+- _check_mains_power_state(ups_data: dict) -> bool: Checks vin1/vin2/vin3 against INPUT_VOLTAGE_THRESHOLD (50V) and battery current (abatp field). Returns True if any voltage > threshold OR abatp <= 0 (battery idle or charging). Note: abatp > 0 means discharging, abatp <= 0 means charging or idle — this cleanly distinguishes "mains present" from "running on battery".
 - _get_full_ups_data(url) -> dict: Same SSL-disabled fetch as ReadUPSMinutes but returns entire JSON dict
 
 ### Server lifecycle:
@@ -242,6 +293,8 @@ Insert default config values (INSERT OR IGNORE):
 - Sends welcome: {"status": "connected", "message": "Welcome to UPS Server"}
 - Loops reading newline-delimited JSON messages
 - On heartbeat message: updates heartbeat, updates DB, sends {"type": "heartbeat_ack"}
+- On malformed JSON: log warning with raw data and client address, skip the message (do not disconnect)
+- On unrecognized message type (not heartbeat): log info with the message type and client hostname, skip (no response sent)
 - Cleanup: removes client from dict, closes connection
 
 ### _monitor_clients():
@@ -259,6 +312,8 @@ Insert default config values (INSERT OR IGNORE):
 - broadcast_message(message): Acquires lock, sends to all clients
 - list_clients(): Returns list of dicts with hostname, address, last_heartbeat
 
+Note: The shutdown message format sent to clients is: {"type": "shutdown", "reason": "low_power", "seconds_to_shutdown": <int>, "total_minutes": <int>, "timestamp": <float>}. See Prompt 3 step 9.c for full details.
+
 ### main():
 Creates UPSServer() and calls start().
 
@@ -272,13 +327,15 @@ if __name__ == "__main__": main()
 ```
 Add the _ups_monitor method and _execute_shutdown method to the UPSServer class in server/UPSserver.py. Use ONLY Python standard library modules (no external dependencies). These implement the core UPS monitoring loop and shutdown logic.
 
+IMPORTANT: Refer to the "Riello UPS JSON API Reference" section above for the UPS JSON field names, semantics, and units. Fetch those URLs if you haven't already. Fields like 'abatp', 'vin1/vin2/vin3', 'autonomy' come from the Riello live_data.json API.
+
 ### _ups_monitor():
 This method runs in the UPS monitor daemon thread. It loops while self.running:
 
 1. Get UPS URL from DB config (fallback to default UPS_URL constant)
 2. Fetch full UPS data using _get_full_ups_data(url). If None, log warning, sleep UPS_CHECK_INTERVAL, continue.
 3. Check mains power state using _check_mains_power_state(ups_data)
-4. Detect state changes (mains_power_present != previous state):
+4. Detect state changes: compute new_state = _check_mains_power_state(ups_data); if new_state != self.mains_power_present, record the event; then update self.mains_power_present = new_state:
    - If mains restored: log WARNING, record 'mains_restored' power event with vin1/vin2/vin3 from ups_data, battery_current from ups_data['abatp'], autonomy from ups_data['autonomy']
    - If mains lost: log CRITICAL, record 'mains_lost' power event with same fields
    - Update self.mains_power_present
@@ -305,7 +362,7 @@ This method runs in the UPS monitor daemon thread. It loops while self.running:
      e. Call self._execute_shutdown(max_seconds_to_shutdown + 30) — the +30 is a buffer so server shuts down AFTER all clients
 
 10. If total_minutes > ups_minimum_minutes:
-    - Reset consecutive_low_readings to 0 if it was > 0 (log info about recovery)
+    - Reset consecutive_low_readings to 0 if it was > 0 (log info about recovery). Note: this covers the normal-operation reset. The recovery-mode reset is handled by _exit_recovery_mode() in step 8. Between these two branches, consecutive_low_readings is always reset whenever conditions improve.
     - Broadcast normal ups_status: {"type": "ups_status", "total_minutes": total_minutes, "timestamp": time.time()}
 
 11. Sleep UPS_CHECK_INTERVAL (60 seconds)
@@ -405,7 +462,7 @@ Main reconnection loop with linear backoff:
 
 ### _heartbeat_loop():
 While running and connected:
-1. Calculate interval = HEARTBEAT_BASE_INTERVAL + random.randint(1, HEARTBEAT_RANDOM_MAX) — note: 1 to 30, not 0 to 30
+1. Calculate interval = HEARTBEAT_BASE_INTERVAL + random.randint(1, HEARTBEAT_RANDOM_MAX) — note: 1 to 30, not 0 to 30 (avoids zero jitter which would cause unnecessarily tight heartbeat intervals)
 2. Sleep for interval
 3. If not connected: break
 4. Send heartbeat JSON under lock: {"type": "heartbeat", "timestamp": time.time()} followed by newline (\n)
@@ -449,6 +506,8 @@ if __name__ == "__main__": main()
 ```
 Create server/UPSdashboard.py — the web dashboard HTTP server. Use ONLY Python standard library. This prompt covers the backend; the next prompt will add the full HTML frontend.
 
+IMPORTANT: Refer to the "Riello UPS JSON API Reference" section above for UPS JSON field names and semantics when implementing get_ups_status() and get_ups_full_status().
+
 ## Imports:
 sqlite3, json, os, secrets, http.server.HTTPServer, http.server.BaseHTTPRequestHandler, urllib.parse.urlparse, urllib.parse.parse_qs, datetime.datetime, http.cookies.SimpleCookie
 
@@ -456,6 +515,10 @@ sqlite3, json, os, secrets, http.server.HTTPServer, http.server.BaseHTTPRequestH
 DB_PATH = 'ups_clients.db'
 DEFAULT_PORT = 8080
 DEFAULT_ACCESS_CODE = 'ups-riello-r2ut'
+
+IMPORTANT: Change this default access code before production deployment via the Configuration tab in the dashboard.
+
+Security note: The access code is stored in plaintext in the SQLite configuration table. This is acceptable for a LAN-only admin tool, but be aware that anyone with read access to ups_clients.db can retrieve it. For higher-security environments, restrict filesystem and network access to the dashboard.
 
 ## Session Management:
 - active_sessions = set() — in-memory session storage
@@ -476,7 +539,7 @@ DEFAULT_ACCESS_CODE = 'ups-riello-r2ut'
 - update_client_shutdown_time(hostname, seconds): UPDATE client_connections SET seconds_to_shutdown. Return True/False.
 
 ## UPS Status Functions:
-- get_ups_status(): Read UPS_URL from DB, fetch JSON with SSL verification disabled (timeout 5s), extract 'autonomy', return {"total_minutes": int, "status": "ok"} or None
+- get_ups_status(): Read UPS_URL from DB, fetch JSON with SSL verification disabled (timeout 5s), extract 'autonomy', return {"total_minutes": int, "status": "ok"} or None. Note: the 5s timeout is intentionally shorter than the server's 10s (ReadUPSMinutes) because the dashboard serves interactive web requests and should not block a browser for 10s.
 - get_ups_full_status(): Same fetch but return entire JSON dict or None
 
 ## Class: DashboardHandler(BaseHTTPRequestHandler)
@@ -523,6 +586,16 @@ Route by parsed path:
 - Check if DB_PATH exists, show error page if not
 - Otherwise call generate_dashboard_html() and serve as text/html
 
+### Handler method specifications:
+- serve_login_page(): Calls generate_login_html(), sends result as text/html response
+- serve_clients_data(): Calls load_client_connections(), sends result as JSON response
+- serve_config_data(): Calls load_configuration(), sends result as JSON response
+- serve_ups_status(): Calls get_ups_status(), sends as JSON response (or 503 with error JSON if None)
+- serve_ups_full_status(): Calls get_ups_full_status(), sends as JSON response (or 503 with error JSON if None)
+- serve_power_events(): Parses ?limit=N query param (default 100), calls load_power_events(limit), sends as JSON
+- handle_update_shutdown(): Reads JSON body, extracts hostname and seconds, calls update_client_shutdown_time(), sends success/failure JSON
+- handle_update_config(): Reads JSON body, extracts key and value, calls update_config_value(), sends success/failure JSON
+
 ### Error page generation:
 - generate_error_page(title, message): Simple HTML error page with dark theme
 
@@ -547,6 +620,8 @@ We will fill these in the next prompt.
 
 ```
 Replace the generate_login_html() and generate_dashboard_html() placeholder methods in server/UPSdashboard.py with full implementations. Use ONLY Python standard library modules (no external dependencies). These methods return complete HTML strings with embedded CSS and JavaScript. No external files or CDNs — everything is inline.
+
+IMPORTANT: Refer to the "Riello UPS JSON API Reference" section above and fetch those URLs if you haven't already. The System Status tab displays UPS metrics using JSON field names from the Riello live_data.json API. Use the field mapping you built (from MODBUS tables, BACnet descriptions, SNMP MIB, and field name patterns) to display correct labels, units, and scaling (e.g., frequency ÷10 for Hz, battery voltage ÷10 for V).
 
 ## generate_login_html():
 Return a complete HTML page with:
@@ -586,21 +661,21 @@ Card "Input Measurements":
 - Values fetched from /api/ups_full_status
 
 Card "Bypass Status":
-- 3-column: Voltage (vby1/vby2/vby3), Frequency (fby)
+- 3-column: Voltage (vbyp1/vbyp2/vbyp3), Frequency (fbyp)
 
 Card "Output Measurements":
-- 3-column: Voltage (vout1/vout2/vout3), Current (aout1/aout2/aout3), Power (wout1/wout2/wout3), Power Factor (pfout1/pfout2/pfout3), Load % (pout1/pout2/pout3)
+- 3-column: Voltage (vout1/vout2/vout3), Current (aout1/aout2/aout3), Power (w1/w2/w3), Load % (load1/load2/load3)
 - Calculate total kVA and kW from sum of phase values
 
 Card "Battery Status":
-- Capacity % (bcap), Autonomy min (autonomy), Voltage (vbat), Current (abatp)
+- Capacity % (batcap), Autonomy min (autonomy), Voltage (vbatp, and vbatn for negative bus if available), Current (abatp)
 - Visual battery level bar (colored green/yellow/red by percentage)
 
 Card "Environmental":
-- Temperature 1 (tmp1), Temperature 2 (tmp2), Energy (nrg)
+- System Temperature (tsys), External/Battery Temperature (tbatext), Energy (KWh)
 
 Card "System Status":
-- UPS Status code (upssts), Alarm Status (alarm)
+- UPS Status code (system_status), Alarm Status (alarms)
 - Human-readable status descriptions
 
 Refresh button to reload all data
@@ -625,6 +700,7 @@ Refresh button to reload all data
 - Data from /api/config
 - Value column has editable input fields (text type)
 - "Save" button per row that POSTs to /api/update_config with {"key": key, "value": value}
+- Note: there is no "Delete" action for configuration keys. Keys added by mistake must be corrected via the Value field or removed directly from the SQLite database.
 - Refresh button
 
 ### Global Styling:
@@ -684,7 +760,7 @@ WantedBy=multi-user.target
 
 ### server/UPSdashboard.service:
 [Unit]
-Description=Python UPSdashboard Service (Streamlit)
+Description=Python UPSdashboard Service (HTTP)
 After=network.target
 
 [Service]
@@ -719,8 +795,6 @@ StandardError=append:/var/log/UPSclient_error.log
 
 [Install]
 WantedBy=multi-user.target
-
-Note: The UPSdashboard service description says "(Streamlit)" but it's actually a plain HTTP server — keep this description exactly as shown for backward compatibility.
 ```
 
 ---
@@ -732,15 +806,15 @@ Create three logrotate configuration files with IDENTICAL structure (only file/s
 
 ### server/UPSserver.logrotate:
 Rotates: /var/log/UPSserver.log and /var/log/UPSserver_error.log
-Post-rotate: systemctl reload UPSserver.service
+Post-rotate: systemctl restart UPSserver.service
 
 ### server/UPSdashboard.logrotate:
 Rotates: /var/log/UPSdashboard.log and /var/log/UPSdashboard_error.log
-Post-rotate: systemctl reload UPSdashboard.service
+Post-rotate: systemctl restart UPSdashboard.service
 
 ### client/UPSclient.logrotate:
 Rotates: /var/log/UPSclient.log and /var/log/UPSclient_error.log
-Post-rotate: systemctl reload UPSclient.service
+Post-rotate: systemctl restart UPSclient.service
 
 All three use this exact configuration block (substitute SERVICE_NAME):
 
@@ -758,7 +832,7 @@ All three use this exact configuration block (substitute SERVICE_NAME):
     dateformat -%Y%m%d
     extension .log
     postrotate
-        systemctl reload SERVICE_NAME.service > /dev/null 2>&1 || true
+        systemctl restart SERVICE_NAME.service > /dev/null 2>&1 || true
     endscript
 }
 ```
@@ -772,6 +846,6 @@ After completing all 8 prompts, verify:
 1. **Server starts**: `cd server && python3 UPSserver.py` — should initialize DB, start UDP/TCP listeners
 2. **Dashboard starts**: `cd server && python3 UPSdashboard.py` — should serve on port 8080
 3. **Client starts**: `cd client && python3 UPSclient.py` — should broadcast discovery
-4. **No external deps**: `grep -r "pip install\|import requests\|import flask" . --include="*.py"` — should return nothing
+4. **No external deps**: `grep -rE "^(import|from) (requests|flask|fastapi|aiohttp|httpx)" . --include="*.py"` — should return nothing
 5. **All files present**: verify all `.py`, `.service`, and `.logrotate` files exist
 6. **Dashboard accessible**: open http://localhost:8080, login with `ups-riello-r2ut`, verify 4 tabs render
