@@ -23,7 +23,7 @@ Three components:
 
 ### 1. UPS Server (UPSserver.py)
 - Runs on the LAST machine to be shut down
-- Monitors a Riello UPS device via HTTPS JSON API (https://<UPS_DEVICE_IP>/json/live_data.json) where UPS_DEVICE_IP is a constant defined in the code (default: 192.168.155.55, configurable via the dashboard)
+- Monitors a Riello UPS device via HTTPS JSON API (https://<UPS_DEVICE_IP>/json/live_data.json) where UPS_DEVICE_IP is a constant defined in the code (default: 192.168.155.55, configurable via the dashboard). The UPS uses a self-signed SSL certificate, so all HTTPS requests to this endpoint must disable certificate verification (equivalent to curl's `-k` / `--insecure` flag). In Python, this means creating an `ssl.SSLContext` with certificate verification disabled and passing it to `urllib.request.urlopen`.
 - Polls the UPS every 60 seconds to check battery autonomy (remaining minutes)
 - Manages client connections via UDP discovery (port 5225) and TCP communication (port 5226)
 - Stores client information and configuration in SQLite database (ups_clients.db)
@@ -120,8 +120,6 @@ Include a pfSense SSH Setup subsection with numbered steps:
 - Copy UPSclient.logrotate to /etc/logrotate.d/UPSclient
 - systemctl daemon-reload, enable, start
 - View logs commands
-
-Also create a LICENSE file with MIT license.
 
 Note: The deployment sections above list the high-level steps (directory creation, file copy destinations, systemctl commands). The exact contents of the .service and .logrotate files are defined in Prompts 7-8. The README should present the deployment steps as shown above but tell the reader to consult the actual .service and .logrotate files for their contents, rather than inlining those file contents into the README.
 
